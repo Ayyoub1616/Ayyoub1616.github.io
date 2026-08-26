@@ -1,8 +1,9 @@
 import { db, deviceId } from './db';
-import type { BaseEntity, EntityType, Location, Movement, Pallet, Parcel, PendingOperation, Reception } from './types';
+import type { Anomaly, BaseEntity, EntityType, Location, Movement, Pallet, Parcel, PendingOperation, Reception } from './types';
 import { receptionInputSchema, scanInputSchema } from './validation';
 
 const iso = () => new Date().toISOString();
+const recentReads=new Map<string,number>();
 const record = (value: object) => value as unknown as Record<string, unknown>;
 
 function operation(entityType:EntityType, entity:BaseEntity):PendingOperation {
@@ -48,7 +49,7 @@ export async function updateReception(input:{id:string;reference:string;vehicle?
   });return updated;
 }
 
-export async function scanParcel(input:{palletId:string;code:string;article:string;mocacota?:string;color?:string;size?:string;units:number;operator:string;acceptAnomaly?:boolean}) {
+export async function scanParcel(input:{palletId:string;code:string;originalCode?:string;ruleVersion?:number;article:string;mocacota?:string;model?:string;quality?:string;color?:string;size?:string;units:number;operator:string;acceptAnomaly?:boolean}) {
   const clean = scanInputSchema.parse(input);
   const pallet = await db.pallets.get(input.palletId);
   if (!pallet) throw new Error('No se encuentra el palé seleccionado.');
@@ -56,6 +57,7 @@ export async function scanParcel(input:{palletId:string;code:string;article:stri
   if (pallet.scanClosedAt) throw new Error('El palé está cerrado. Sólo un manager puede reabrirlo.');
   const duplicate = await db.parcels.where('code').equalsIgnoreCase(clean.code).filter(item=>item.palletId===pallet.id&&!item.voidedAt&&!item.deletedAt).first();
   if (duplicate) throw new Error(`El bulto ${clean.code} ya está registrado en este palé.`);
+  const readKey=`${input.palletId}:${clean.code.trim().toUpperCase()}`,readAt=recentReads.get(readKey)||0;if(Date.now()-readAt<1500)throw new Error('Lectura repetida demasiado rápido: espera un instante.');recentReads.set(readKey,Date.now());
   const receptionPalletIds=await db.pallets.where('receptionId').equals(pallet.receptionId).primaryKeys();
   const firstParcel=await db.parcels.where('palletId').anyOf(receptionPalletIds).first();
   const patternMismatch=Boolean(firstParcel&&(firstParcel.code.length!==clean.code.length||/^\d+$/.test(firstParcel.code)!==/^\d+$/.test(clean.code)));
@@ -66,12 +68,13 @@ export async function scanParcel(input:{palletId:string;code:string;article:stri
     throw new Error(`ANOMALY:${reason}`);
   }
   const now = iso();
-  const parcel:Parcel = { id:crypto.randomUUID(),createdAt:now,updatedAt:now,deletedAt:null,version:1,code:clean.code,palletId:pallet.id,article:clean.article,mocacota:clean.mocacota,color:clean.color,size:clean.size,units:clean.units,operator:input.operator,anomalous };
+  const anomaly:Anomaly|undefined=anomalous?{id:crypto.randomUUID(),createdAt:now,updatedAt:now,deletedAt:null,version:1,receptionId:pallet.receptionId,palletId:pallet.id,type:patternMismatch?'patron':'articulo',status:'aceptada',detail:patternMismatch?'Patrón distinto al primer bulto':'Artículo distinto al palé',reportedBy:input.operator,resolvedBy:input.operator,resolvedAt:now,resolution:'aceptada',photos:[]}:undefined;
+  const parcel:Parcel = { id:crypto.randomUUID(),createdAt:now,updatedAt:now,deletedAt:null,version:1,code:clean.code,originalCode:input.originalCode??input.code,normalizedCode:clean.code.trim().toUpperCase(),ruleVersion:input.ruleVersion??pallet.ruleVersion??1,palletId:pallet.id,article:clean.article,mocacota:clean.mocacota,model:input.model,quality:input.quality,color:clean.color,size:clean.size,units:clean.units,originalUnits:clean.units,operator:input.operator,checkStatus:anomalous?'anomalia':'pendiente',anomalous,anomalyIds:anomaly?[anomaly.id]:[],photos:[] };
   const updated:Pallet = { ...pallet,article:pallet.article||clean.article,mocacota:pallet.mocacota||clean.mocacota,color:pallet.color||clean.color,size:pallet.size||clean.size,parcels:pallet.parcels+1,units:pallet.units+clean.units,status:pallet.status==='pendiente'?'escaneado':pallet.status,operator:input.operator,updatedAt:now,version:pallet.version+1 };
   const movement:Movement = { id:crypto.randomUUID(),createdAt:now,updatedAt:now,deletedAt:null,version:1,palletId:pallet.id,type:'escaneo',parcels:1,reason:`Bulto ${clean.code}`,operator:input.operator,deviceId:deviceId() };
-  await db.transaction('rw',[db.parcels,db.pallets,db.movements,db.operations],async()=>{
+  await db.transaction('rw',[db.parcels,db.pallets,db.movements,db.anomalies,db.operations],async()=>{
     await db.parcels.add(parcel); await db.pallets.put(updated); await db.movements.add(movement);
-    await db.operations.bulkAdd([operation('parcel',parcel),operation('pallet',updated),operation('movement',movement)]);
+    if(anomaly)await db.anomalies.add(anomaly);await db.operations.bulkAdd([operation('parcel',parcel),operation('pallet',updated),operation('movement',movement),...(anomaly?[operation('anomaly',anomaly)]:[])]);
   });
   return {parcel,pallet:updated};
 }

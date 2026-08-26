@@ -18,10 +18,13 @@
   "dependencies": {
     "@zxing/browser": "^0.2.1",
     "dexie": "^4.4.5",
+    "exceljs": "^4.4.0",
+    "jspdf": "^4.2.1",
     "next": "16.2.11",
     "qrcode": "^1.5.4",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
