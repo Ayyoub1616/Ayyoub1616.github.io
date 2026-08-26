@@ -2,7 +2,7 @@ import { db } from './db';
 import type { EntityType, PendingOperation } from './types';
 import { apiUrl } from './api';
 
-const tables = { reception:db.receptions, pallet:db.pallets, parcel:db.parcels, location:db.locations, movement:db.movements } as const;
+const tables = { reception:db.receptions, pallet:db.pallets, parcel:db.parcels, location:db.locations, movement:db.movements, barcodeRule:db.barcodeRules, anomaly:db.anomalies, audit:db.audits } as const;
 
 export async function syncNow() {
   if (!navigator.onLine) return { synced:0, conflicts:[] as string[] };
@@ -17,7 +17,7 @@ export async function syncNow() {
   const remote=await fetch(apiUrl('/api/sync'),{credentials:'include'});
   if(!remote.ok)throw new Error(((await remote.json()) as {error?:string}).error||'No se pudieron traer los cambios.');
   const data=await remote.json() as {entities:Array<{id:string;entityType:EntityType;data:Record<string,unknown>;deletedAt:string|null}>};
-  await db.transaction('rw',[db.receptions,db.pallets,db.parcels,db.locations,db.movements],async()=>{
+  await db.transaction('rw',[db.receptions,db.pallets,db.parcels,db.locations,db.movements,db.barcodeRules,db.anomalies,db.audits],async()=>{
     for(const entity of data.entities){const table=tables[entity.entityType] as typeof db.receptions;if(entity.deletedAt)await table.delete(entity.id);else await table.put(entity.data as never);}
   });
   return { synced:pending.length, conflicts:[] as string[] };

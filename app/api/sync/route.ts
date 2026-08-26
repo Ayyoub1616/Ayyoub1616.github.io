@@ -9,7 +9,7 @@ const json=(data:unknown,init?:ResponseInit)=>Response.json(data,{...init,header
 export async function OPTIONS(){return new Response(null,{status:204,headers:cors})}
 
 const operationSchema = z.object({
-  id: z.string().uuid(), entityId: z.string().uuid(), entityType: z.enum(['reception','pallet','parcel','location','movement']),
+  id: z.string().uuid(), entityId: z.string().min(1).max(100), entityType: z.enum(['reception','pallet','parcel','location','movement','barcodeRule','anomaly','audit']),
   action: z.enum(['upsert','delete']), data: z.record(z.string(), z.unknown()), version: z.number().int().positive(),
   deviceId: z.string().min(8).max(100), createdAt: z.iso.datetime(),
 });
