@@ -2,18 +2,18 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PalletFlow Lab · Control de almacén',
-  description: 'PWA local de pruebas para gestionar recepciones, palés y ubicaciones.',
+  title: 'PalletFlow Almacén · Control operativo',
+  description: 'Gestión de recepciones, palés, bultos, ubicaciones y expediciones.',
   manifest: '/manifest.webmanifest',
   openGraph: {
-    title: 'PalletFlow Lab',
-    description: 'Control de almacén · Entorno de pruebas',
-    images: [{ url: '/og.png', width: 1731, height: 909, alt: 'PalletFlow Lab' }],
+    title: 'PalletFlow Almacén',
+    description: 'Control operativo de almacén',
+    images: [{ url: '/og.png', width: 1731, height: 909, alt: 'PalletFlow Almacén' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'PalletFlow Lab',
-    description: 'Control de almacén · Entorno de pruebas',
+    title: 'PalletFlow Almacén',
+    description: 'Control operativo de almacén',
     images: ['/og.png'],
   },
 };

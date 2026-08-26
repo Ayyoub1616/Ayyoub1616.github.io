@@ -1,7 +1,7 @@
 {
-  "name": "PalletFlow Lab",
+  "name": "PalletFlow Almacén",
   "short_name": "PalletFlow",
-  "description": "Control de almacén en entorno de pruebas",
+  "description": "Control operativo de recepciones, palés, bultos y ubicaciones",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#eef1f1",

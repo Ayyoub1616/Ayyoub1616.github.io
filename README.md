@@ -1,6 +1,6 @@
 # PalletFlow Warehouse
 
-> **ENTORNO DE PRUEBAS · NO USAR CON DATOS REALES**
+> **APLICACIÓN DE PRODUCCIÓN · PALLETFLOW ALMACÉN**
 
 PWA responsive para gestionar recepciones, palés, bultos, ubicaciones, movimientos y extracciones. Está pensada primero para PDA y móvil, sin perder una vista de escritorio clara. Todo el contenido de demostración es ficticio.
 
