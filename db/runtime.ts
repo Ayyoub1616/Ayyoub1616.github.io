@@ -38,6 +38,7 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS parcel_claims (pallet_id TEXT NOT NULL, code TEXT NOT NULL, parcel_id TEXT NOT NULL UNIQUE, PRIMARY KEY(pallet_id,code))`,
   `CREATE TABLE IF NOT EXISTS location_claims (location_id TEXT PRIMARY KEY, pallet_id TEXT NOT NULL UNIQUE)`,
   `CREATE TABLE IF NOT EXISTS sync_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, operation_id TEXT NOT NULL UNIQUE, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS photo_objects (id TEXT PRIMARY KEY, object_key TEXT NOT NULL UNIQUE, anomaly_id TEXT, parcel_id TEXT, content_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, operator TEXT NOT NULL, created_at TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_sync_events_sequence ON sync_events(sequence)`,
   `CREATE INDEX IF NOT EXISTS idx_profiles_status ON profiles(status)`,
   `CREATE INDEX IF NOT EXISTS idx_entities_type_updated ON entities(entity_type, updated_at)`,
