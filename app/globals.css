@@ -154,12 +154,15 @@ input,select,textarea { width:100%; min-height:46px; padding:10px 12px; color:va
 .status-en_suelo { color:#70450a; background:#fff0c9; }
 .role-operario .record-card .danger { display:none; }
 .heat-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.7rem;margin-top:1rem}.heat-map article{display:flex;flex-direction:column;padding:1rem;border-radius:12px;border:1px solid var(--line)}
+.admin-trash{border-top:5px solid #b84332}.admin-trash>details{margin-top:12px;border:1px solid var(--line);border-radius:8px;padding:12px}.admin-trash summary{cursor:pointer;font-weight:900}.trash-targets{display:flex;flex-wrap:wrap;gap:8px;max-height:280px;overflow:auto;padding-top:12px}.trash-list{display:grid;gap:8px;margin-top:12px}.trash-list article{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:12px}.trash-list small{display:block;color:var(--muted);margin-top:4px}.trash-dialog{position:relative;width:min(680px,100%);max-height:90vh;overflow:auto;background:var(--surface);color:var(--ink);border-radius:12px;padding:26px}.impact-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}.impact-grid span{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--canvas)}.impact-grid b{display:block;font-size:22px}.history-filters-v9{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;align-items:end}.history-filters-v9 label{font-size:11px;font-weight:800}.column-picker{position:relative;border:1px solid var(--line);border-radius:8px;padding:12px}.column-picker summary{cursor:pointer;font-weight:800}.column-picker label{display:flex;align-items:center;gap:6px;margin-top:7px}.column-picker input{width:18px;min-height:18px}
 
 @media (max-width:860px) {
   .barcode-rule-grid { grid-template-columns:1fr 1fr; }
+  .impact-grid,.history-filters-v9 { grid-template-columns:1fr 1fr; }
 }
 @media (max-width:600px) {
   .barcode-rule-grid,.control-list article { grid-template-columns:1fr; }
+  .impact-grid,.history-filters-v9,.trash-list article { grid-template-columns:1fr; }
   .task-card { grid-template-columns:52px 1fr; }
   .task-card>small { grid-column:2; }
 }
