@@ -6,7 +6,7 @@ import { env } from 'cloudflare:workers';
 export const dynamic='force-dynamic';
 const entity=z.record(z.string(),z.unknown());
 const snapshotSchema=z.object({receptions:z.array(entity).max(2000),pallets:z.array(entity).max(10000),parcels:z.array(entity).max(100000),locations:z.array(entity).max(10000),movements:z.array(entity).max(100000)});
-const cors={'access-control-allow-origin':'https://ayyoub1616.github.io','access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};
+const cors={'access-control-allow-origin':'https://ayyoub1616.github.io','access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,authorization'};
 const json=(data:unknown,init?:ResponseInit)=>Response.json(data,{...init,headers:{...cors,...init?.headers}});
 export async function OPTIONS(){return new Response(null,{status:204,headers:cors})}
 

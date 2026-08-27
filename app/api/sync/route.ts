@@ -6,7 +6,7 @@ import { canWriteEntity } from '../_lib/policy';
 import { env } from 'cloudflare:workers';
 
 export const dynamic = 'force-dynamic';
-const cors={'access-control-allow-origin':'https://ayyoub1616.github.io','access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};
+const cors={'access-control-allow-origin':'https://ayyoub1616.github.io','access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,authorization'};
 const json=(data:unknown,init?:ResponseInit)=>Response.json(data,{...init,headers:{...cors,...init?.headers}});
 export async function OPTIONS(){return new Response(null,{status:204,headers:cors})}
 

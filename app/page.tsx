@@ -19,6 +19,7 @@ import { SecureSignIn } from './components/SecureSignIn';
 import { LocationMasterPanel } from './components/LocationMasterPanel';
 import { OperationsKPIs } from './components/OperationsKPIs';
 import { AdminUsers } from './components/AdminUsers';
+import { authFetch, clearAccessToken } from './lib/auth';
 
 const scanFeedback=(kind:'ok'|'anomaly'|'complete')=>{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(kind==='ok'?60:kind==='complete'?[80,60,160]:[180,80,180]);try{const context=new AudioContext();const oscillator=context.createOscillator();oscillator.frequency.value=kind==='ok'?880:kind==='complete'?1100:220;oscillator.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.12)}catch{}};
 const readOcrFile=async(file:File)=>{const {recognize}=await import('tesseract.js');const result=await recognize(file,'eng',{logger:()=>undefined});return (result.data.text.match(/[0-9]{8,}/g)||[]).sort((a,b)=>b.length-a.length)[0]||''};
@@ -37,7 +38,7 @@ export default function Home(){
   const refresh=useCallback(async()=>setData({receptions:(await db.receptions.toArray()).filter(x=>!x.deletedAt),pallets:(await db.pallets.toArray()).filter(x=>!x.deletedAt),parcels:(await db.parcels.toArray()).filter(x=>!x.deletedAt),locations:(await db.locations.toArray()).filter(x=>!x.deletedAt),movements:(await db.movements.orderBy('createdAt').reverse().toArray()).filter(x=>!x.deletedAt),anomalies:(await db.anomalies.toArray()).filter(x=>!x.deletedAt),pending:await db.operations.count()}),[]);
   const tell=useCallback((text:string,kind:'ok'|'error'='ok')=>{setNotice({text,kind});window.setTimeout(()=>setNotice(null),4000)},[]);
   useEffect(()=>{const on=()=>setOnline(true),off=()=>setOnline(false);addEventListener('online',on);addEventListener('offline',off);queueMicrotask(()=>void refresh());
-    queueMicrotask(()=>{void fetch(apiUrl('/api/session'),{credentials:'include'}).then(async response=>{if(!response.ok)return null;return (await response.json() as {profile:Profile}).profile}).then(found=>{setProfile(found);if(found&&navigator.onLine)void syncNow().then(refresh).catch(()=>undefined)}).catch(()=>setProfile(null)).finally(()=>setAuthLoading(false))});
+    queueMicrotask(()=>{void authFetch(apiUrl('/api/session')).then(async response=>{if(!response.ok)return null;return (await response.json() as {profile:Profile}).profile}).then(found=>{setProfile(found);if(found&&navigator.onLine)void syncNow().then(refresh).catch(()=>undefined)}).catch(()=>setProfile(null)).finally(()=>setAuthLoading(false))});
     if('serviceWorker'in navigator){
       if(import.meta.env.PROD)navigator.serviceWorker.register(`${import.meta.env.BASE_URL||'/'}sw.js`).catch(()=>undefined);
       else navigator.serviceWorker.getRegistrations().then((items)=>Promise.all(items.map((item)=>item.unregister()))).catch(()=>undefined);
@@ -57,7 +58,7 @@ export default function Home(){
 
   return <div className={`${dark?'app-shell dark':'app-shell'} role-${profile.role}`}>
     <div className="safety-stripe" aria-hidden="true"/>
-    <header className="topbar"><div><p className="eyebrow">PALLETFLOW</p><h1>Control de almacén</h1></div><div className="top-actions"><span className={`connection ${online?'is-online':''}`}><i/> {online?'Online':'Sin conexión'} · {data.pending?`${data.pending} por subir`:'todo guardado'}</span><button className="operator" title="Cambiar operario" onClick={()=>{void fetch(apiUrl('/api/session'),{method:'DELETE',credentials:'include'}).finally(()=>{localStorage.removeItem('palletflow-operator-name');setProfile(null)})}}>OP <strong>{profile.displayName}</strong><small>{profile.role} · cambiar</small></button></div></header>
+    <header className="topbar"><div><p className="eyebrow">PALLETFLOW</p><h1>Control de almacén</h1></div><div className="top-actions"><span className={`connection ${online?'is-online':''}`}><i/> {online?'Online':'Sin conexión'} · {data.pending?`${data.pending} por subir`:'todo guardado'}</span><button className="operator" title="Cambiar operario" onClick={()=>{void authFetch(apiUrl('/api/session'),{method:'DELETE'}).finally(()=>{clearAccessToken();localStorage.removeItem('palletflow-operator-name');setProfile(null)})}}>OP <strong>{profile.displayName}</strong><small>{profile.role} · cambiar</small></button></div></header>
     <div className="test-banner operational" role="status"><span>✓</span> ACCESO OPERATIVO · CAMBIOS SINCRONIZADOS EN LA NUBE</div>
     <nav className="main-nav" aria-label="Navegación principal">{desktopNav.map(([id,,label])=><button key={id} className={view===id?'active':''} onClick={()=>go(id)}>{label}</button>)}</nav>
     {notice&&<div className={`toast ${notice.kind}`} role="status">{notice.kind==='ok'?'✓':'!'} {notice.text}</div>}
