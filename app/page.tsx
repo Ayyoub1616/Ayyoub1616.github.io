@@ -14,6 +14,7 @@ import { assignExtractionTasks, closePallet, closeReception, createLocation, cre
 import { defaultBarcodeRule, parseBoxBarcode, planPallets, readBarcodeRule, refreshBarcodeRule, saveBarcodeRule } from './lib/barcodes';
 import { apiUrl } from './lib/api';
 import { HistoryExplorerV3 } from './components/HistoryExplorer';
+import { AdvancedPlanner } from './components/AdvancedPlanner';
 
 const scanFeedback=(kind:'ok'|'anomaly'|'complete')=>{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(kind==='ok'?60:kind==='complete'?[80,60,160]:[180,80,180]);try{const context=new AudioContext();const oscillator=context.createOscillator();oscillator.frequency.value=kind==='ok'?880:kind==='complete'?1100:220;oscillator.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.12)}catch{}};
 const readOcrFile=async(file:File)=>{const {recognize}=await import('tesseract.js');const result=await recognize(file,'eng',{logger:()=>undefined});return (result.data.text.match(/[0-9]{8,}/g)||[]).sort((a,b)=>b.length-a.length)[0]||''};
@@ -63,7 +64,7 @@ export default function Home(){
       {view==='ubicar'&&<LocationsView pallets={activePallets.filter(p=>p.scanClosedAt&&p.status!=='ubicado'&&p.status!=='en_suelo')} locations={data.locations} busy={busy} locate={(p,l)=>perform(()=>locatePallet(p,l,profile.displayName),'Palé ubicado correctamente.')} create={(input)=>perform(()=>createLocation(input),'Ubicación creada.')}/>} 
       {view==='tareas'&&<TasksView pallets={data.pallets} locations={data.locations} operator={profile.displayName} busy={busy} complete={(p,l,pc,c)=>perform(()=>moveTaskToFloor(p,l,pc,c,profile.displayName),'Tarea completada. Palé registrado en suelo.')}/>} 
       {view==='extraer'&&<Extraction pallets={activePallets.filter(p=>p.parcels>0)} busy={busy} extract={(p,c,r)=>perform(()=>extractPallet(p,c,r,profile.displayName),'Extracción registrada.')}/>} 
-      {view==='inventario'&&<><Inventory pallets={data.pallets} receptions={data.receptions} locations={data.locations}/>{profile.role==='manager'&&<AdminOrdersPanel pallets={data.pallets} locations={data.locations} operator={profile.displayName} act={(ids,assignee)=>perform(()=>assignExtractionTasks(ids,assignee,profile.displayName),'Orden de extracción creada.')}/>}</>} 
+      {view==='inventario'&&<><AdvancedPlanner pallets={data.pallets} locations={data.locations}/><Inventory pallets={data.pallets} receptions={data.receptions} locations={data.locations}/>{profile.role==='manager'&&<AdminOrdersPanel pallets={data.pallets} locations={data.locations} operator={profile.displayName} act={(ids,assignee)=>perform(()=>assignExtractionTasks(ids,assignee,profile.displayName),'Orden de extracción creada.')}/>}</>} 
       {view==='movimientos'&&<><HistoryExplorerV3 receptions={data.receptions} pallets={data.pallets} parcels={data.parcels} locations={data.locations}/><MovementsView movements={data.movements} pallets={data.pallets} locations={data.locations}/></>}
       {view==='datos'&&<><CloudBackupPanel onRefresh={refresh} tell={tell}/>{profile.role==='manager'&&<><BarcodeSettings tell={tell}/><DataView busy={busy} pending={data.pending} onRefresh={refresh} tell={tell}/></>}</>}
     </main>
