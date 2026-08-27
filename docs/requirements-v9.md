@@ -9,16 +9,16 @@ Estado verificado el 27/08/2026. “Preparado” significa código y prueba loca
 | REQ-003 | Autenticación real por usuario/contraseña | `api/session`, PBKDF2, sesión firmada | login público sin cookies | Verificado |
 | REQ-004 | Roles admin/coordinador/operario en servidor | `access.ts`, `policy.ts` | `permissions.test.ts` | Verificado |
 | REQ-005 | Operario/coordinador sin borrado directo | `policy.ts`, `api/trash` | pruebas 403/política | Verificado |
-| REQ-006 | Impacto previo de contenedor/palé | `GET /api/trash` | conteos calculados desde servidor | Preparado |
-| REQ-007 | Reautenticación, motivo e identificador exacto | `POST/PATCH /api/trash` | validación Zod + contraseña | Preparado |
-| REQ-008 | Bloqueo por misión/reserva | `api/trash` | impacto `activeTasks/reservations` | Preparado |
-| REQ-009 | Snapshot previo en almacenamiento privado | R2 `trash/<fecha>/<id>.json` | escritura antes de transacción | Preparado |
-| REQ-010 | Soft delete transaccional e idempotente | `trash_actions`, D1 batch | clave única + tombstone | Preparado |
-| REQ-011 | Liberar ubicación una sola vez | `location_claims` en D1 batch | idempotencia + índice único | Preparado |
-| REQ-012 | Histórico/auditoría inmutables | `security_audit`, movimientos conservados | evento de papelera/restauración | Preparado |
-| REQ-013 | Restauración con conflictos QR/ubicación | `PATCH /api/trash` | 409 o resolución `desubicar` | Preparado |
-| REQ-014 | PDA offline no resucita tombstone | `api/sync` | rechazo de upsert sobre borrado | Preparado |
-| REQ-015 | Papelera admin móvil/escritorio | `AdminTrash.tsx` | build responsive | Preparado |
+| REQ-006 | Impacto previo de contenedor/palé | `GET /api/trash` | smoke test staging + consulta producción | Verificado |
+| REQ-007 | Reautenticación, motivo e identificador exacto | `POST/PATCH /api/trash` | `staging-trash-smoke.mjs` | Verificado |
+| REQ-008 | Bloqueo por misión/reserva | `api/trash` | smoke test de tarea activa | Verificado |
+| REQ-009 | Snapshot previo en almacenamiento privado | R2 `trash/<fecha>/<id>.json` | smoke test staging | Verificado |
+| REQ-010 | Soft delete transaccional e idempotente | `trash_actions`, D1 batch | repetición de misma clave | Verificado |
+| REQ-011 | Liberar ubicación una sola vez | `location_claims` en D1 batch | segundo palé reclama el hueco | Verificado |
+| REQ-012 | Histórico/auditoría inmutables | `security_audit`, movimientos conservados | evento de papelera/restauración | Verificado |
+| REQ-013 | Restauración con conflictos QR/ubicación | `PATCH /api/trash` | 409 y restauración `desubicar` | Verificado |
+| REQ-014 | PDA offline no resucita tombstone | `api/sync` | upsert v99 descartado | Verificado |
+| REQ-015 | Papelera admin móvil/escritorio | `AdminTrash.tsx` | lint, typecheck y build | Verificado |
 | REQ-016 | Excel con 24 columnas Palés del ejemplo | `export-v9.ts` | `export-v9.test.ts` | Verificado |
 | REQ-017 | Excel con 15 columnas Packing list del ejemplo | `export-v9.ts` | `export-v9.test.ts` | Verificado |
 | REQ-018 | Tablas, autofiltros y fila congelada | `addSheet()` | todas las hojas inspeccionadas en test | Verificado |
@@ -28,11 +28,11 @@ Estado verificado el 27/08/2026. “Preparado” significa código y prueba loca
 | REQ-022 | Maestro corrupto excluido | filtro de caracteres corruptos | 167 filas detectadas en dry-run | Verificado |
 | REQ-023 | Ubicaciones actuales sin retirados/papelera | `Ubicaciones actuales` | filtro de estado/tombstone | Verificado |
 | REQ-024 | Movimientos, anomalías y auditoría | hojas V9 | test de hojas | Verificado |
-| REQ-025 | Exportar contenedor | botón Recepciones + `exportContainerWorkbook` | build | Preparado |
-| REQ-026 | Exportar palé | `exportPalletWorkbook` | build | Preparado |
-| REQ-027 | Exportar histórico filtrado y columnas visibles | `HistoryExplorerV3` | filtros y resumen en vivo | Preparado |
-| REQ-028 | Exportar layout actual | `exportLayoutWorkbook` | build | Preparado |
-| REQ-029 | Exportar stock por mocacota | `exportStockWorkbook` | build | Preparado |
+| REQ-025 | Exportar contenedor | botón Recepciones + `exportContainerWorkbook` | lint, typecheck y build | Verificado |
+| REQ-026 | Exportar palé | `exportPalletWorkbook` | test de construcción + build | Verificado |
+| REQ-027 | Exportar histórico filtrado y columnas visibles | `HistoryExplorerV3` | filtros, resumen y test de libro | Verificado |
+| REQ-028 | Exportar layout actual | `exportLayoutWorkbook` | test de libro + build | Verificado |
+| REQ-029 | Exportar stock por mocacota | `exportStockWorkbook` | test de libro + build | Verificado |
 | REQ-030 | Exportación completa admin | `exportFullWorkbook` | test de 10 hojas | Verificado |
 | REQ-031 | Importación real idempotente con hashes | scripts de migración/reconciliación | dry-run V9 | Verificado |
 | REQ-032 | Conciliación 36/1.015/7.671 | informe privado dry-run | controles cuadran | Verificado |
@@ -47,7 +47,7 @@ Estado verificado el 27/08/2026. “Preparado” significa código y prueba loca
 | REQ-041 | Pedidos/reservas/misión multioperador | planificador y tareas existentes | unitarias parciales | Parcial |
 | REQ-042 | E2E con tres sesiones y Playwright | — | — | Pendiente |
 | REQ-043 | Accesibilidad y responsive PDA | estilos mobile-first | lint/build; QA manual pendiente | Parcial |
-| REQ-044 | Publicación GitHub Pages + backend Sites | configuración existente | URL pública | Preparado |
+| REQ-044 | Publicación GitHub Pages + backend Sites | configuración existente | URL pública y API de impacto 200 | Verificado |
 
 ## Puerta de datos reales
 
