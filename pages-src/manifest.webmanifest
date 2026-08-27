@@ -1,7 +1,7 @@
 {
-  "name":"PalletFlow Lab",
+  "name":"PalletFlow Almacén",
   "short_name":"PalletFlow",
-  "description":"Control de recepción, palés, cajas y ubicaciones.",
+  "description":"SGA operativo de recepciones, palés, bultos, ubicaciones y expediciones.",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",

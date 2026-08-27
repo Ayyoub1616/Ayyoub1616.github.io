@@ -1,4 +1,4 @@
-const CACHE='palletflow-pages-v1';
+const CACHE='palletflow-pages-v8';
 const BASE=self.registration.scope;
 const CORE=[BASE,`${BASE}manifest.webmanifest`];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE))));
