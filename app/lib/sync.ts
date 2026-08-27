@@ -38,3 +38,5 @@ export async function downloadCloudBackup(){
 export async function markSyncFailure(operations:PendingOperation[],error:string){
   await db.operations.bulkPut(operations.map((op)=>({...op,attempts:op.attempts+1,lastError:error})));
 }
+
+export function subscribeRealtime(onChange:()=>void){let cursor=sessionStorage.getItem('palletflow-event-sequence')||'0';const source=new EventSource(`${apiUrl('/api/events')}?since=${encodeURIComponent(cursor)}`,{withCredentials:true});source.addEventListener('change',(event)=>{const message=event as MessageEvent<string>;try{const data=JSON.parse(message.data) as {sequence:number};cursor=String(data.sequence);sessionStorage.setItem('palletflow-event-sequence',cursor)}catch{}onChange()});return()=>source.close()}

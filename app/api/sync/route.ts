@@ -43,6 +43,7 @@ export async function POST(request: Request) {
         .bind(op.entityId,op.entityType,JSON.stringify(op.data),op.version,op.createdAt,op.action === 'delete' ? op.createdAt : null),
       db.prepare('INSERT OR IGNORE INTO operations (id,entity_id,action,payload_json,actor_user_id,device_id,created_at) VALUES (?,?,?,?,?,?,?)')
         .bind(op.id,op.entityId,op.action,JSON.stringify(op.data),operator,op.deviceId,op.createdAt),
+      db.prepare('INSERT OR IGNORE INTO sync_events (operation_id,entity_id,entity_type,created_at) VALUES (?,?,?,?)').bind(op.id,op.entityId,op.entityType,op.createdAt),
       ...claims];
   });
   try{if(statements.length)await db.batch(statements)}catch{return json({error:'Conflicto: el QR, bulto o hueco ya ha sido confirmado por otro dispositivo.'},{status:409})}
