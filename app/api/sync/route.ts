@@ -3,6 +3,7 @@ import { ensureSchema, getD1 } from '../../../db/runtime';
 import type { EntityRow } from '../../../db/schema';
 import { currentProfile } from '../_lib/access';
 import { canWriteEntity } from '../_lib/policy';
+import { env } from 'cloudflare:workers';
 
 export const dynamic = 'force-dynamic';
 const cors={'access-control-allow-origin':'https://ayyoub1616.github.io','access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};
@@ -47,5 +48,6 @@ export async function POST(request: Request) {
       ...claims];
   });
   try{if(statements.length)await db.batch(statements)}catch{return json({error:'Conflicto: el QR, bulto o hueco ya ha sido confirmado por otro dispositivo.'},{status:409})}
+  const webhook=(env as unknown as Record<string,string|undefined>).PALLETFLOW_WEBHOOK_URL,secret=(env as unknown as Record<string,string|undefined>).PALLETFLOW_WEBHOOK_SECRET;for(const op of body.data.operations){if(webhook&&op.entityType==='reception'&&(op.data as {status?:string}).status==='cerrada')await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','x-palletflow-signature':secret||''},body:JSON.stringify({event:'reception.closed',reception:op.data,occurredAt:op.createdAt})})}
   return json({ accepted: body.data.operations.length, conflicts:[] });
 }
