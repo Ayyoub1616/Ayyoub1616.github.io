@@ -13,6 +13,7 @@ import type { Location, Movement, Pallet, Parcel, Permission, Profile, Reception
 import { assignExtractionTasks, closePallet, closeReception, createLocation, createReception, extractPallet, locatePallet, moveTaskToFloor, reopenPallet, scanParcel, setExpectedParcels, unlockReceptionForExtraction, updateReception } from './lib/warehouse';
 import { defaultBarcodeRule, parseBoxBarcode, planPallets, readBarcodeRule, refreshBarcodeRule, saveBarcodeRule } from './lib/barcodes';
 import { apiUrl } from './lib/api';
+import { HistoryExplorerV3 } from './components/HistoryExplorer';
 
 const scanFeedback=(kind:'ok'|'anomaly'|'complete')=>{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(kind==='ok'?60:kind==='complete'?[80,60,160]:[180,80,180]);try{const context=new AudioContext();const oscillator=context.createOscillator();oscillator.frequency.value=kind==='ok'?880:kind==='complete'?1100:220;oscillator.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.12)}catch{}};
 const readOcrFile=async(file:File)=>{const {recognize}=await import('tesseract.js');const result=await recognize(file,'eng',{logger:()=>undefined});return (result.data.text.match(/[0-9]{8,}/g)||[]).sort((a,b)=>b.length-a.length)[0]||''};
@@ -63,7 +64,7 @@ export default function Home(){
       {view==='tareas'&&<TasksView pallets={data.pallets} locations={data.locations} operator={profile.displayName} busy={busy} complete={(p,l,pc,c)=>perform(()=>moveTaskToFloor(p,l,pc,c,profile.displayName),'Tarea completada. Palé registrado en suelo.')}/>} 
       {view==='extraer'&&<Extraction pallets={activePallets.filter(p=>p.parcels>0)} busy={busy} extract={(p,c,r)=>perform(()=>extractPallet(p,c,r,profile.displayName),'Extracción registrada.')}/>} 
       {view==='inventario'&&<><Inventory pallets={data.pallets} receptions={data.receptions} locations={data.locations}/>{profile.role==='manager'&&<AdminOrdersPanel pallets={data.pallets} locations={data.locations} operator={profile.displayName} act={(ids,assignee)=>perform(()=>assignExtractionTasks(ids,assignee,profile.displayName),'Orden de extracción creada.')}/>}</>} 
-      {view==='movimientos'&&<><HistoryExplorer receptions={data.receptions} pallets={data.pallets} parcels={data.parcels}/><MovementsView movements={data.movements} pallets={data.pallets} locations={data.locations}/></>}
+      {view==='movimientos'&&<><HistoryExplorerV3 receptions={data.receptions} pallets={data.pallets} parcels={data.parcels} locations={data.locations}/><MovementsView movements={data.movements} pallets={data.pallets} locations={data.locations}/></>}
       {view==='datos'&&<><CloudBackupPanel onRefresh={refresh} tell={tell}/>{profile.role==='manager'&&<><BarcodeSettings tell={tell}/><DataView busy={busy} pending={data.pending} onRefresh={refresh} tell={tell}/></>}</>}
     </main>
     <nav className="mobile-nav" aria-label="Navegación móvil">{mobileNav.map(([id,icon,label])=><button className={view===id?'active':''} onClick={()=>go(id)} key={id}><span>{icon}</span>{label}</button>)}</nav>
