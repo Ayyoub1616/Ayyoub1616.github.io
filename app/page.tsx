@@ -9,7 +9,7 @@ import { db } from './lib/db';
 import { clearDemoData, loadDemoData } from './lib/demo';
 import { createBackup, exportCsv, exportExcel, exportFilteredHistory, restoreBackup } from './lib/export';
 import { downloadCloudBackup, subscribeRealtime, syncNow, uploadCloudBackup } from './lib/sync';
-import type { Location, Movement, Pallet, Parcel, Permission, Profile, Reception, Role } from './lib/types';
+import type { Anomaly, Location, Movement, Pallet, Parcel, Permission, Profile, Reception, Role } from './lib/types';
 import { assignExtractionTasks, closePallet, closeReception, createLocation, createReception, extractPallet, importLocationMaster, locatePallet, moveTaskToFloor, reopenPallet, scanParcel, setExpectedParcels, unlockReceptionForExtraction, updateReception } from './lib/warehouse';
 import { defaultBarcodeRule, parseBoxBarcode, planPallets, readBarcodeRule, refreshBarcodeRule, saveBarcodeRule } from './lib/barcodes';
 import { apiUrl } from './lib/api';
@@ -17,13 +17,14 @@ import { HistoryExplorerV3 } from './components/HistoryExplorer';
 import { AdvancedPlanner } from './components/AdvancedPlanner';
 import { SecureSignIn } from './components/SecureSignIn';
 import { LocationMasterPanel } from './components/LocationMasterPanel';
+import { OperationsKPIs } from './components/OperationsKPIs';
 
 const scanFeedback=(kind:'ok'|'anomaly'|'complete')=>{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(kind==='ok'?60:kind==='complete'?[80,60,160]:[180,80,180]);try{const context=new AudioContext();const oscillator=context.createOscillator();oscillator.frequency.value=kind==='ok'?880:kind==='complete'?1100:220;oscillator.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.12)}catch{}};
 const readOcrFile=async(file:File)=>{const {recognize}=await import('tesseract.js');const result=await recognize(file,'eng',{logger:()=>undefined});return (result.data.text.match(/[0-9]{8,}/g)||[]).sort((a,b)=>b.length-a.length)[0]||''};
 
 type View = 'inicio'|'recepciones'|'etiquetas'|'escanear'|'ubicar'|'tareas'|'extraer'|'inventario'|'movimientos'|'datos'|'usuarios';
-type Snapshot = { receptions:Reception[]; pallets:Pallet[]; parcels:Parcel[]; locations:Location[]; movements:Movement[]; pending:number };
-const empty:Snapshot={receptions:[],pallets:[],parcels:[],locations:[],movements:[],pending:0};
+type Snapshot = { receptions:Reception[]; pallets:Pallet[]; parcels:Parcel[]; locations:Location[]; movements:Movement[]; anomalies:Anomaly[]; pending:number };
+const empty:Snapshot={receptions:[],pallets:[],parcels:[],locations:[],movements:[],anomalies:[],pending:0};
 const nav:Array<[View,string,string]>=[['inicio','⌂','Inicio'],['recepciones','▣','Recepciones'],['etiquetas','QR','Etiquetas'],['escanear','▦','Escanear'],['ubicar','⌖','Ubicar'],['tareas','☑','Tareas'],['extraer','↗','Extraer'],['inventario','☷','Inventario'],['movimientos','↔','Movimientos'],['datos','⇅','Datos']];
 const allPermissions:Permission[]=['recepciones','escanear','ubicar','extraer','inventario','exportar','usuarios','reglas','corregir','restaurar'];
 const viewPermission:Partial<Record<View,Permission>>={recepciones:'recepciones',etiquetas:'recepciones',escanear:'escanear',ubicar:'ubicar',tareas:'extraer',extraer:'extraer',inventario:'inventario',datos:'exportar',usuarios:'usuarios'};
@@ -32,7 +33,7 @@ export default function Home(){
   const [view,setView]=useState<View>('inicio');const [data,setData]=useState(empty);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);const [dark,setDark]=useState(false);
   const [profile,setProfile]=useState<Profile|null>(null);const [authLoading,setAuthLoading]=useState(true);const [notice,setNotice]=useState<{kind:'ok'|'error';text:string}|null>(null);const [busy,setBusy]=useState(false);
   const [labelReceptionId,setLabelReceptionId]=useState('');
-  const refresh=useCallback(async()=>setData({receptions:(await db.receptions.toArray()).filter(x=>!x.deletedAt),pallets:(await db.pallets.toArray()).filter(x=>!x.deletedAt),parcels:(await db.parcels.toArray()).filter(x=>!x.deletedAt),locations:(await db.locations.toArray()).filter(x=>!x.deletedAt),movements:(await db.movements.orderBy('createdAt').reverse().toArray()).filter(x=>!x.deletedAt),pending:await db.operations.count()}),[]);
+  const refresh=useCallback(async()=>setData({receptions:(await db.receptions.toArray()).filter(x=>!x.deletedAt),pallets:(await db.pallets.toArray()).filter(x=>!x.deletedAt),parcels:(await db.parcels.toArray()).filter(x=>!x.deletedAt),locations:(await db.locations.toArray()).filter(x=>!x.deletedAt),movements:(await db.movements.orderBy('createdAt').reverse().toArray()).filter(x=>!x.deletedAt),anomalies:(await db.anomalies.toArray()).filter(x=>!x.deletedAt),pending:await db.operations.count()}),[]);
   const tell=useCallback((text:string,kind:'ok'|'error'='ok')=>{setNotice({text,kind});window.setTimeout(()=>setNotice(null),4000)},[]);
   useEffect(()=>{const on=()=>setOnline(true),off=()=>setOnline(false);addEventListener('online',on);addEventListener('offline',off);queueMicrotask(()=>void refresh());
     queueMicrotask(()=>{void fetch(apiUrl('/api/session'),{credentials:'include'}).then(async response=>{if(!response.ok)return null;return (await response.json() as {profile:Profile}).profile}).then(found=>{setProfile(found);if(found&&navigator.onLine)void syncNow().then(refresh).catch(()=>undefined)}).catch(()=>setProfile(null)).finally(()=>setAuthLoading(false))});
@@ -60,7 +61,7 @@ export default function Home(){
     <nav className="main-nav" aria-label="Navegación principal">{desktopNav.map(([id,,label])=><button key={id} className={view===id?'active':''} onClick={()=>go(id)}>{label}</button>)}</nav>
     {notice&&<div className={`toast ${notice.kind}`} role="status">{notice.kind==='ok'?'✓':'!'} {notice.text}</div>}
     <main>
-      {view==='inicio'&&<Dashboard data={data} go={go} dark={dark} setDark={setDark} online={online} profile={profile} sync={()=>perform(()=>syncNow(),'Información subida y actualizada.')}/>}
+      {view==='inicio'&&<><Dashboard data={data} go={go} dark={dark} setDark={setDark} online={online} profile={profile} sync={()=>perform(()=>syncNow(),'Información subida y actualizada.')}/>{(profile.role==='admin'||profile.role==='manager'||profile.role==='coordinador')&&<OperationsKPIs pallets={data.pallets} parcels={data.parcels} locations={data.locations} movements={data.movements} anomalies={data.anomalies}/>}</>} 
       {view==='recepciones'&&<><Receptions data={data} busy={busy} create={async(input)=>{setBusy(true);try{const reception=await createReception(input,profile.displayName);await refresh();setLabelReceptionId(reception.id);setView('etiquetas');tell('Recepción creada. Las etiquetas QR están listas para imprimir.')}catch(error){tell(error instanceof Error?error.message:'No se pudo crear la recepción.','error')}finally{setBusy(false)}}} openLabels={(id)=>{setLabelReceptionId(id);setView('etiquetas')}} close={(id)=>{if(confirm('¿Cerrar y bloquear este camión?'))void perform(()=>closeReception(id),'Camión cerrado y bloqueado.')}}/>{(profile.role==='admin'||profile.role==='manager')&&<ReceptionControl receptions={data.receptions} pallets={data.pallets} locations={data.locations} operator={profile.displayName} act={(action,message)=>perform(action,message)}/>}</>}
       {view==='etiquetas'&&<LabelsView receptions={data.receptions} pallets={data.pallets} selectedId={labelReceptionId} onSelect={setLabelReceptionId}/>}
       {view==='escanear'&&<GuidedScanner pallets={activePallets.filter(p=>!p.scanClosedAt)} parcels={data.parcels} busy={busy} operator={profile.displayName} refresh={refresh} tell={tell}/>} 
