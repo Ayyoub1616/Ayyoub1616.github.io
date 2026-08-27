@@ -18,6 +18,7 @@ import { AdvancedPlanner } from './components/AdvancedPlanner';
 import { SecureSignIn } from './components/SecureSignIn';
 import { LocationMasterPanel } from './components/LocationMasterPanel';
 import { OperationsKPIs } from './components/OperationsKPIs';
+import { AdminUsers } from './components/AdminUsers';
 
 const scanFeedback=(kind:'ok'|'anomaly'|'complete')=>{if(typeof navigator!=='undefined'&&navigator.vibrate)navigator.vibrate(kind==='ok'?60:kind==='complete'?[80,60,160]:[180,80,180]);try{const context=new AudioContext();const oscillator=context.createOscillator();oscillator.frequency.value=kind==='ok'?880:kind==='complete'?1100:220;oscillator.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.12)}catch{}};
 const readOcrFile=async(file:File)=>{const {recognize}=await import('tesseract.js');const result=await recognize(file,'eng',{logger:()=>undefined});return (result.data.text.match(/[0-9]{8,}/g)||[]).sort((a,b)=>b.length-a.length)[0]||''};
@@ -25,7 +26,7 @@ const readOcrFile=async(file:File)=>{const {recognize}=await import('tesseract.j
 type View = 'inicio'|'recepciones'|'etiquetas'|'escanear'|'ubicar'|'tareas'|'extraer'|'inventario'|'movimientos'|'datos'|'usuarios';
 type Snapshot = { receptions:Reception[]; pallets:Pallet[]; parcels:Parcel[]; locations:Location[]; movements:Movement[]; anomalies:Anomaly[]; pending:number };
 const empty:Snapshot={receptions:[],pallets:[],parcels:[],locations:[],movements:[],anomalies:[],pending:0};
-const nav:Array<[View,string,string]>=[['inicio','⌂','Inicio'],['recepciones','▣','Recepciones'],['etiquetas','QR','Etiquetas'],['escanear','▦','Escanear'],['ubicar','⌖','Ubicar'],['tareas','☑','Tareas'],['extraer','↗','Extraer'],['inventario','☷','Inventario'],['movimientos','↔','Movimientos'],['datos','⇅','Datos']];
+const nav:Array<[View,string,string]>=[['inicio','⌂','Inicio'],['recepciones','▣','Recepciones'],['etiquetas','QR','Etiquetas'],['escanear','▦','Escanear'],['ubicar','⌖','Ubicar'],['tareas','☑','Tareas'],['extraer','↗','Extraer'],['inventario','☷','Inventario'],['movimientos','↔','Movimientos'],['datos','⇅','Datos'],['usuarios','♙','Usuarios']];
 const allPermissions:Permission[]=['recepciones','escanear','ubicar','extraer','inventario','exportar','usuarios','reglas','corregir','restaurar'];
 const viewPermission:Partial<Record<View,Permission>>={recepciones:'recepciones',etiquetas:'recepciones',escanear:'escanear',ubicar:'ubicar',tareas:'extraer',extraer:'extraer',inventario:'inventario',datos:'exportar',usuarios:'usuarios'};
 
@@ -71,6 +72,7 @@ export default function Home(){
       {view==='inventario'&&<><AdvancedPlanner pallets={data.pallets} locations={data.locations}/><Inventory pallets={data.pallets} receptions={data.receptions} locations={data.locations}/>{(profile.role==='admin'||profile.role==='manager')&&<AdminOrdersPanel pallets={data.pallets} locations={data.locations} operator={profile.displayName} act={(ids,assignee)=>perform(()=>assignExtractionTasks(ids,assignee,profile.displayName),'Orden de extracción creada.')}/>}</>} 
       {view==='movimientos'&&<><HistoryExplorerV3 receptions={data.receptions} pallets={data.pallets} parcels={data.parcels} locations={data.locations}/><MovementsView movements={data.movements} pallets={data.pallets} locations={data.locations}/></>}
       {view==='datos'&&<><CloudBackupPanel onRefresh={refresh} tell={tell}/>{(profile.role==='admin'||profile.role==='manager')&&<><BarcodeSettings tell={tell}/><DataView busy={busy} pending={data.pending} onRefresh={refresh} tell={tell}/></>}</>}
+      {view==='usuarios'&&(profile.role==='admin'||profile.role==='manager')&&<AdminUsers current={profile} tell={tell}/>}
     </main>
     <nav className="mobile-nav" aria-label="Navegación móvil">{mobileNav.map(([id,icon,label])=><button className={view===id?'active':''} onClick={()=>go(id)} key={id}><span>{icon}</span>{label}</button>)}</nav>
   </div>;

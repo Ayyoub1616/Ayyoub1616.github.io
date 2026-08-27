@@ -1,45 +1,14 @@
 import { z } from 'zod';
-import { ALL_PERMISSIONS, publicProfile, requireManager } from '../_lib/access';
+import { ALL_PERMISSIONS, hashPassword, requireManager, securityAudit } from '../_lib/access';
 import { ensureSchema, getD1 } from '../../../db/runtime';
-import type { ProfileRow } from '../../../db/schema';
 
 export const dynamic = 'force-dynamic';
+const roleSchema=z.enum(['operario','coordinador','admin']);const permissionSchema=z.enum(ALL_PERMISSIONS);
+const createSchema=z.object({username:z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,40}$/),displayName:z.string().trim().min(2).max(80),password:z.string().min(12).max(128),role:roleSchema,permissions:z.array(permissionSchema).default([])});
+const updateSchema=z.object({id:z.string().uuid(),displayName:z.string().trim().min(2).max(80),role:roleSchema,status:z.enum(['active','blocked']),permissions:z.array(permissionSchema),password:z.string().min(12).max(128).optional()});
+type UserRow={id:string;username:string;display_name:string;role:'operario'|'coordinador'|'admin';permissions_json:string;status:'active'|'blocked';created_at:string;updated_at:string;last_login_at:string|null};
+const expose=(u:UserRow)=>({id:u.id,email:u.username,username:u.username,displayName:u.display_name,role:u.role,permissions:JSON.parse(u.permissions_json),status:u.status,createdAt:u.created_at,updatedAt:u.updated_at,lastLoginAt:u.last_login_at});
 
-const roleSchema = z.enum(['operario', 'coordinador', 'manager']);
-const permissionSchema = z.enum(ALL_PERMISSIONS);
-const createSchema = z.object({ email: z.email(), displayName: z.string().trim().min(2).max(80), role: roleSchema, permissions: z.array(permissionSchema) });
-const updateSchema = z.object({ id: z.string().uuid(), displayName: z.string().trim().min(2).max(80), role: roleSchema, status: z.enum(['pending', 'active', 'blocked']), permissions: z.array(permissionSchema) });
-
-export async function GET() {
-  if (!await requireManager()) return Response.json({ error: 'Sin permiso de manager.' }, { status: 403 });
-  await ensureSchema();
-  const rows = await getD1().prepare('SELECT * FROM profiles ORDER BY created_at DESC').all<ProfileRow>();
-  return Response.json({ users: rows.results.map(publicProfile) });
-}
-
-export async function POST(request: Request) {
-  if (!await requireManager()) return Response.json({ error: 'Sin permiso de manager.' }, { status: 403 });
-  const parsed = createSchema.safeParse(await request.json());
-  if (!parsed.success) return Response.json({ error: 'Revisa el nombre, correo y permisos.' }, { status: 400 });
-  const existing = await getD1().prepare('SELECT id FROM profiles WHERE email = ?').bind(parsed.data.email).first();
-  if (existing) return Response.json({ error: 'Ya existe un perfil con ese correo.' }, { status: 409 });
-  const now = new Date().toISOString();
-  const row: ProfileRow = { id: crypto.randomUUID(), user_id: `invite:${parsed.data.email}`, email: parsed.data.email, display_name: parsed.data.displayName, role: parsed.data.role, permissions_json: JSON.stringify(parsed.data.permissions), status: 'active', created_at: now, updated_at: now };
-  await getD1().prepare(`INSERT INTO profiles (id,user_id,email,display_name,role,permissions_json,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`)
-    .bind(row.id,row.user_id,row.email,row.display_name,row.role,row.permissions_json,row.status,row.created_at,row.updated_at).run();
-  return Response.json({ user: publicProfile(row) }, { status: 201 });
-}
-
-export async function PATCH(request: Request) {
-  const manager = await requireManager();
-  if (!manager) return Response.json({ error: 'Sin permiso de manager.' }, { status: 403 });
-  const parsed = updateSchema.safeParse(await request.json());
-  if (!parsed.success) return Response.json({ error: 'Datos de perfil no válidos.' }, { status: 400 });
-  if (parsed.data.id === manager.id && (parsed.data.role !== 'manager' || parsed.data.status !== 'active')) {
-    return Response.json({ error: 'No puedes retirar tu propio acceso de manager.' }, { status: 400 });
-  }
-  const now = new Date().toISOString();
-  await getD1().prepare('UPDATE profiles SET display_name=?, role=?, permissions_json=?, status=?, updated_at=? WHERE id=?')
-    .bind(parsed.data.displayName, parsed.data.role, JSON.stringify(parsed.data.permissions), parsed.data.status, now, parsed.data.id).run();
-  return Response.json({ ok: true });
-}
+export async function GET(){if(!await requireManager())return Response.json({error:'Sin permiso de administrador.'},{status:403});await ensureSchema();const rows=await getD1().prepare('SELECT id,username,display_name,role,permissions_json,status,created_at,updated_at,last_login_at FROM app_users ORDER BY created_at DESC').all<UserRow>();return Response.json({users:rows.results.map(expose)})}
+export async function POST(request:Request){const manager=await requireManager();if(!manager)return Response.json({error:'Sin permiso de administrador.'},{status:403});await ensureSchema();const parsed=createSchema.safeParse(await request.json());if(!parsed.success)return Response.json({error:'Revisa usuario, nombre, contraseña (mínimo 12 caracteres), rol y permisos.'},{status:400});if(await getD1().prepare('SELECT id FROM app_users WHERE username=?').bind(parsed.data.username).first())return Response.json({error:'Ese usuario ya existe.'},{status:409});const {salt,hash}=await hashPassword(parsed.data.password),now=new Date().toISOString(),id=crypto.randomUUID();await getD1().prepare('INSERT INTO app_users (id,username,display_name,password_hash,password_salt,role,permissions_json,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id,parsed.data.username,parsed.data.displayName,hash,salt,parsed.data.role,JSON.stringify(parsed.data.permissions),'active',now,now).run();await securityAudit('user_created','user',id,{role:parsed.data.role,by:manager.id});return Response.json({ok:true},{status:201})}
+export async function PATCH(request:Request){const manager=await requireManager();if(!manager)return Response.json({error:'Sin permiso de administrador.'},{status:403});await ensureSchema();const parsed=updateSchema.safeParse(await request.json());if(!parsed.success)return Response.json({error:'Datos de usuario no válidos.'},{status:400});if(parsed.data.id===manager.id&&(parsed.data.role!=='admin'||parsed.data.status!=='active'))return Response.json({error:'No puedes bloquear ni degradar tu propia cuenta.'},{status:400});const now=new Date().toISOString();if(parsed.data.password){const {salt,hash}=await hashPassword(parsed.data.password);await getD1().prepare('UPDATE app_users SET display_name=?,role=?,permissions_json=?,status=?,updated_at=?,password_hash=?,password_salt=? WHERE id=?').bind(parsed.data.displayName,parsed.data.role,JSON.stringify(parsed.data.permissions),parsed.data.status,now,hash,salt,parsed.data.id).run()}else await getD1().prepare('UPDATE app_users SET display_name=?,role=?,permissions_json=?,status=?,updated_at=? WHERE id=?').bind(parsed.data.displayName,parsed.data.role,JSON.stringify(parsed.data.permissions),parsed.data.status,now,parsed.data.id).run();await securityAudit('user_updated','user',parsed.data.id,{role:parsed.data.role,status:parsed.data.status,passwordReset:Boolean(parsed.data.password),by:manager.id});return Response.json({ok:true})}
