@@ -33,7 +33,17 @@ export async function POST(request: Request) {
   for (const op of body.data.operations) {
     if(!canWriteEntity(profile.role,op.entityType,op.action))return json({error:'Tu rol no permite esta operación.'},{status:403});
   }
-  const statements=body.data.operations.flatMap(op=>{
+  const acceptedOperations:typeof body.data.operations=[],conflicts:string[]=[];
+  for(const op of body.data.operations){
+    const repeated=await db.prepare('SELECT id FROM operations WHERE id=?').bind(op.id).first();if(repeated)continue;
+    const current=await db.prepare('SELECT version,deleted_at FROM entities WHERE id=?').bind(op.entityId).first<{version:number;deleted_at:string|null}>();
+    // Un tombstone confirmado en servidor nunca puede ser resucitado por una
+    // cola antigua. Restaurar sólo es posible mediante /api/trash.
+    if(current?.deleted_at&&op.action==='upsert'){conflicts.push(op.entityId);continue}
+    if(current&&op.version<=Number(current.version)){conflicts.push(op.entityId);continue}
+    acceptedOperations.push(op);
+  }
+  const statements=acceptedOperations.flatMap(op=>{
     const claims=[];const data=op.data as {code?:string;normalizedCode?:string;palletId?:string;locationId?:string};
     if(op.entityType==='pallet'&&op.action==='upsert'){claims.push(db.prepare('DELETE FROM pallet_qr_claims WHERE pallet_id=?').bind(op.entityId));claims.push(db.prepare('INSERT INTO pallet_qr_claims (qr,pallet_id) VALUES (?,?)').bind((data.normalizedCode||data.code||'').toUpperCase(),op.entityId));claims.push(db.prepare('DELETE FROM location_claims WHERE pallet_id=?').bind(op.entityId));if(data.locationId)claims.push(db.prepare('INSERT INTO location_claims (location_id,pallet_id) VALUES (?,?)').bind(data.locationId,op.entityId))}
     if(op.entityType==='parcel'&&op.action==='upsert'&&data.palletId){claims.push(db.prepare('DELETE FROM parcel_claims WHERE parcel_id=?').bind(op.entityId));claims.push(db.prepare('INSERT INTO parcel_claims (pallet_id,code,parcel_id) VALUES (?,?,?)').bind(data.palletId,(data.normalizedCode||data.code||'').toUpperCase(),op.entityId))}
@@ -48,6 +58,6 @@ export async function POST(request: Request) {
       ...claims];
   });
   try{if(statements.length)await db.batch(statements)}catch{return json({error:'Conflicto: el QR, bulto o hueco ya ha sido confirmado por otro dispositivo.'},{status:409})}
-  const webhook=(env as unknown as Record<string,string|undefined>).PALLETFLOW_WEBHOOK_URL,secret=(env as unknown as Record<string,string|undefined>).PALLETFLOW_WEBHOOK_SECRET;for(const op of body.data.operations){if(webhook&&op.entityType==='reception'&&(op.data as {status?:string}).status==='cerrada')await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','x-palletflow-signature':secret||''},body:JSON.stringify({event:'reception.closed',reception:op.data,occurredAt:op.createdAt})})}
-  return json({ accepted: body.data.operations.length, conflicts:[] });
+  const webhook=(env as unknown as Record<string,string|undefined>).PALLETFLOW_WEBHOOK_URL,secret=(env as unknown as Record<string,string|undefined>).PALLETFLOW_WEBHOOK_SECRET;for(const op of acceptedOperations){if(webhook&&op.entityType==='reception'&&(op.data as {status?:string}).status==='cerrada')await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','x-palletflow-signature':secret||''},body:JSON.stringify({event:'reception.closed',reception:op.data,occurredAt:op.createdAt})})}
+  return json({ accepted: acceptedOperations.length, conflicts, discarded:conflicts });
 }

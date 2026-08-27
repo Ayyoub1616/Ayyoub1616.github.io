@@ -12,8 +12,9 @@ export async function syncNow() {
     const upload=pending.map((item)=>{const copy:Partial<PendingOperation>={...item};delete copy.attempts;delete copy.lastError;return copy;});
     const response=await authFetch(apiUrl('/api/sync'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operations:upload})});
     if(!response.ok)throw new Error(((await response.json()) as {error?:string}).error||'No se pudo sincronizar.');
-    const result=await response.json() as {accepted:number;conflicts:string[]};
-    await db.operations.bulkDelete(pending.filter((op)=>!result.conflicts.includes(op.entityId)).map((op)=>op.id));
+    const result=await response.json() as {accepted:number;conflicts:string[];discarded?:string[]};
+    const discarded=new Set(result.discarded||[]);
+    await db.operations.bulkDelete(pending.filter((op)=>!result.conflicts.includes(op.entityId)||discarded.has(op.entityId)).map((op)=>op.id));
   }
   const remote=await authFetch(apiUrl('/api/sync'));
   if(!remote.ok)throw new Error(((await remote.json()) as {error?:string}).error||'No se pudieron traer los cambios.');

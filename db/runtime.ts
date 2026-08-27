@@ -40,6 +40,13 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS sync_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, operation_id TEXT NOT NULL UNIQUE, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, created_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS photo_objects (id TEXT PRIMARY KEY, object_key TEXT NOT NULL UNIQUE, anomaly_id TEXT, parcel_id TEXT, content_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, operator TEXT NOT NULL, created_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS cycle_counts (id TEXT PRIMARY KEY, aisle TEXT NOT NULL, expected INTEGER NOT NULL, observed INTEGER NOT NULL, difference INTEGER NOT NULL, operator TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS trash_actions (
+    id TEXT PRIMARY KEY, idempotency_key TEXT NOT NULL UNIQUE, target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL, identifier TEXT NOT NULL, reason TEXT NOT NULL,
+    snapshot_key TEXT NOT NULL, snapshot_json TEXT NOT NULL, impact_json TEXT NOT NULL,
+    actor_user_id TEXT NOT NULL, deleted_at TEXT NOT NULL, restored_at TEXT,
+    restored_by TEXT, restore_reason TEXT, restore_idempotency_key TEXT UNIQUE
+  )`,
   `INSERT OR IGNORE INTO pallet_qr_claims (qr,pallet_id) SELECT UPPER(COALESCE(json_extract(data_json,'$.normalizedCode'),json_extract(data_json,'$.code'))),id FROM entities WHERE entity_type='pallet' AND deleted_at IS NULL AND COALESCE(json_extract(data_json,'$.normalizedCode'),json_extract(data_json,'$.code')) IS NOT NULL`,
   `INSERT OR IGNORE INTO parcel_claims (pallet_id,code,parcel_id) SELECT json_extract(data_json,'$.palletId'),UPPER(COALESCE(json_extract(data_json,'$.normalizedCode'),json_extract(data_json,'$.code'))),id FROM entities WHERE entity_type='parcel' AND deleted_at IS NULL AND json_extract(data_json,'$.palletId') IS NOT NULL AND COALESCE(json_extract(data_json,'$.normalizedCode'),json_extract(data_json,'$.code')) IS NOT NULL`,
   `INSERT OR IGNORE INTO location_claims (location_id,pallet_id) SELECT json_extract(data_json,'$.locationId'),id FROM entities WHERE entity_type='pallet' AND deleted_at IS NULL AND json_extract(data_json,'$.locationId') IS NOT NULL AND json_extract(data_json,'$.status') IN ('ubicado','en_suelo')`,
@@ -51,6 +58,10 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts(ip_address,created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_app_users_status ON app_users(status)`,
   `CREATE INDEX IF NOT EXISTS idx_security_audit_created ON security_audit(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_trash_actions_target ON trash_actions(target_type,target_id,deleted_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_trash_actions_restored ON trash_actions(restored_at,deleted_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_entities_reception_id ON entities(json_extract(data_json,'$.receptionId')) WHERE entity_type IN ('pallet','anomaly')`,
+  `CREATE INDEX IF NOT EXISTS idx_entities_pallet_id ON entities(json_extract(data_json,'$.palletId')) WHERE entity_type IN ('parcel','movement','anomaly')`,
 ];
 
 let ready: Promise<void> | null = null;
