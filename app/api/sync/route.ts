@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ensureSchema, getD1 } from '../../../db/runtime';
 import type { EntityRow } from '../../../db/schema';
 import { currentProfile } from '../_lib/access';
+import { canWriteEntity } from '../_lib/policy';
 
 export const dynamic = 'force-dynamic';
 const cors={'access-control-allow-origin':'https://ayyoub1616.github.io','access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};
@@ -29,17 +30,21 @@ export async function POST(request: Request) {
   await ensureSchema();
   const db = getD1();
   for (const op of body.data.operations) {
-    if(profile.role!=='manager'&&op.action==='delete')return json({error:'Un operario no puede borrar información.'},{status:403});
-    if(profile.role!=='manager'&&op.entityType==='reception'&&op.version>1)return json({error:'Solo Ayyoub puede modificar una recepción existente.'},{status:403});
+    if(!canWriteEntity(profile.role,op.entityType,op.action))return json({error:'Tu rol no permite esta operación.'},{status:403});
   }
-  const statements=body.data.operations.flatMap(op=>[
+  const statements=body.data.operations.flatMap(op=>{
+    const claims=[];const data=op.data as {code?:string;normalizedCode?:string;palletId?:string;locationId?:string};
+    if(op.entityType==='pallet'&&op.action==='upsert'){claims.push(db.prepare('DELETE FROM pallet_qr_claims WHERE pallet_id=?').bind(op.entityId));claims.push(db.prepare('INSERT INTO pallet_qr_claims (qr,pallet_id) VALUES (?,?)').bind((data.normalizedCode||data.code||'').toUpperCase(),op.entityId));claims.push(db.prepare('DELETE FROM location_claims WHERE pallet_id=?').bind(op.entityId));if(data.locationId)claims.push(db.prepare('INSERT INTO location_claims (location_id,pallet_id) VALUES (?,?)').bind(data.locationId,op.entityId))}
+    if(op.entityType==='parcel'&&op.action==='upsert'&&data.palletId){claims.push(db.prepare('DELETE FROM parcel_claims WHERE parcel_id=?').bind(op.entityId));claims.push(db.prepare('INSERT INTO parcel_claims (pallet_id,code,parcel_id) VALUES (?,?,?)').bind(data.palletId,(data.normalizedCode||data.code||'').toUpperCase(),op.entityId))}
+    return [
       db.prepare(`INSERT INTO entities (id,entity_type,data_json,version,updated_at,deleted_at) VALUES (?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET entity_type=excluded.entity_type,data_json=excluded.data_json,version=excluded.version,updated_at=excluded.updated_at,deleted_at=excluded.deleted_at
         WHERE excluded.version > entities.version`)
         .bind(op.entityId,op.entityType,JSON.stringify(op.data),op.version,op.createdAt,op.action === 'delete' ? op.createdAt : null),
       db.prepare('INSERT OR IGNORE INTO operations (id,entity_id,action,payload_json,actor_user_id,device_id,created_at) VALUES (?,?,?,?,?,?,?)')
         .bind(op.id,op.entityId,op.action,JSON.stringify(op.data),operator,op.deviceId,op.createdAt),
-  ]);
-  if(statements.length)await db.batch(statements);
+      ...claims];
+  });
+  try{if(statements.length)await db.batch(statements)}catch{return json({error:'Conflicto: el QR, bulto o hueco ya ha sido confirmado por otro dispositivo.'},{status:409})}
   return json({ accepted: body.data.operations.length, conflicts:[] });
 }

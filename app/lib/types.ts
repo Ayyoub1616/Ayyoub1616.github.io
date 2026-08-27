@@ -1,4 +1,4 @@
-export type Role = 'operario' | 'coordinador' | 'manager';
+export type Role = 'operario' | 'coordinador' | 'admin' | 'manager';
 export type Permission = 'recepciones'|'escanear'|'ubicar'|'extraer'|'inventario'|'exportar'|'usuarios'|'reglas'|'corregir'|'restaurar';
 export type Profile = { id:string; email:string; displayName:string; role:Role; permissions:Permission[]; status:'pending'|'active'|'blocked'; createdAt:string; updatedAt:string };
 export type BaseEntity = { id:string; createdAt:string; updatedAt:string; deletedAt:string|null; version:number; demo?:boolean };

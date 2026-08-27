@@ -23,11 +23,27 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS login_attempts (
     id TEXT PRIMARY KEY, ip_address TEXT NOT NULL, created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS app_users (
+    id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, role TEXT NOT NULL,
+    permissions_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_login_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS security_audit (
+    id TEXT PRIMARY KEY, user_id TEXT, action TEXT NOT NULL, target_type TEXT,
+    target_id TEXT, correlation_id TEXT NOT NULL, detail_json TEXT NOT NULL,
+    ip_address TEXT, created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS pallet_qr_claims (qr TEXT PRIMARY KEY, pallet_id TEXT NOT NULL UNIQUE)`,
+  `CREATE TABLE IF NOT EXISTS parcel_claims (pallet_id TEXT NOT NULL, code TEXT NOT NULL, parcel_id TEXT NOT NULL UNIQUE, PRIMARY KEY(pallet_id,code))`,
+  `CREATE TABLE IF NOT EXISTS location_claims (location_id TEXT PRIMARY KEY, pallet_id TEXT NOT NULL UNIQUE)`,
   `CREATE INDEX IF NOT EXISTS idx_profiles_status ON profiles(status)`,
   `CREATE INDEX IF NOT EXISTS idx_entities_type_updated ON entities(entity_type, updated_at)`,
   `CREATE INDEX IF NOT EXISTS idx_operations_created ON operations(created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_cloud_backups_created ON cloud_backups(created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts(ip_address,created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_app_users_status ON app_users(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_security_audit_created ON security_audit(created_at)`,
 ];
 
 let ready: Promise<void> | null = null;

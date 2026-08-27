@@ -1,29 +1,12 @@
-import { env } from 'cloudflare:workers';
-import { headers } from 'next/headers';
-import type { ProfileRow } from '../../../db/schema';
-
-export const ALL_PERMISSIONS = ['recepciones', 'escanear', 'ubicar', 'extraer', 'inventario', 'exportar', 'usuarios'] as const;
-const OPERATOR_PERMISSIONS = ['recepciones', 'escanear', 'ubicar', 'extraer', 'inventario'] as const;
-const COOKIE = 'palletflow_session';
-const encoder = new TextEncoder();
-
-type SessionPayload = { name:string; role:'operario'|'manager'; exp:number };
-const runtimeEnv=()=>env as unknown as Record<string,string|undefined>;
-const secret=()=>runtimeEnv().PALLETFLOW_SESSION_SECRET||(process.env.NODE_ENV!=='production'?'palletflow-local-development-secret':undefined);
-const base64url=(bytes:Uint8Array)=>btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
-const encodePayload=(payload:SessionPayload)=>base64url(encoder.encode(JSON.stringify(payload)));
-
-async function signature(value:string){const valueSecret=secret();if(!valueSecret)throw new Error('Falta configurar el secreto de sesión.');const key=await crypto.subtle.importKey('raw',encoder.encode(valueSecret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return base64url(new Uint8Array(await crypto.subtle.sign('HMAC',key,encoder.encode(value))))}
-
-export async function createSession(name:string,role:'operario'|'manager'){const payload=encodePayload({name,role,exp:Date.now()+12*60*60*1000});return `${payload}.${await signature(payload)}`}
-
-async function readSession(token:string|undefined):Promise<SessionPayload|null>{if(!token)return null;const [payload,sig]=token.split('.');if(!payload||!sig||await signature(payload)!==sig)return null;try{const encoded=payload.replaceAll('-','+').replaceAll('_','/').padEnd(Math.ceil(payload.length/4)*4,'=');const json=atob(encoded);const parsed=JSON.parse(json) as SessionPayload;return parsed.exp>Date.now()?parsed:null}catch{return null}}
-
-export function sessionCookie(token:string){return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=43200`}
-export function clearSessionCookie(){return `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`}
-
-export async function currentProfile(): Promise<ProfileRow | null> {const requestHeaders=await headers();const cookie=requestHeaders.get('cookie')||'';const token=cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length+1);const session=await readSession(token);if(!session)return null;const now=new Date().toISOString();const manager=session.role==='manager';return {id:`local:${session.name.toLocaleLowerCase('es')}`,user_id:`local:${session.name.toLocaleLowerCase('es')}`,email:'',display_name:session.name,role:session.role,permissions_json:JSON.stringify(manager?ALL_PERMISSIONS:OPERATOR_PERMISSIONS),status:'active',created_at:now,updated_at:now}}
-
-export function configuredAdminPin(){return runtimeEnv().PALLETFLOW_ADMIN_PIN}
-export function publicProfile(profile: ProfileRow) {return {id:profile.id,email:profile.email,displayName:profile.display_name,role:profile.role,permissions:JSON.parse(profile.permissions_json) as string[],status:profile.status,createdAt:profile.created_at,updatedAt:profile.updated_at}}
-export async function requireManager(): Promise<ProfileRow | null> {const profile=await currentProfile();return profile?.status==='active'&&profile.role==='manager'?profile:null}
+import {env} from 'cloudflare:workers';import {headers} from 'next/headers';import type {ProfileRow} from '../../../db/schema';
+export const ALL_PERMISSIONS=['recepciones','escanear','ubicar','extraer','inventario','exportar','usuarios','reglas','corregir','restaurar'] as const;export const COORDINATOR_PERMISSIONS=['recepciones','escanear','ubicar','extraer','inventario','exportar','corregir'] as const;export const OPERATOR_PERMISSIONS=['escanear','ubicar','extraer','inventario'] as const;
+const COOKIE='palletflow_session',encoder=new TextEncoder();type SessionPayload={userId:string;username:string;displayName:string;role:'operario'|'coordinador'|'admin';permissions:string[];exp:number};const runtimeEnv=()=>env as unknown as Record<string,string|undefined>;const secret=()=>runtimeEnv().PALLETFLOW_SESSION_SECRET||(process.env.NODE_ENV!=='production'?'palletflow-local-development-secret':undefined);const base64url=(bytes:Uint8Array)=>btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');const encodePayload=(payload:SessionPayload)=>base64url(encoder.encode(JSON.stringify(payload)));async function signature(value:string){const valueSecret=secret();if(!valueSecret)throw new Error('Falta configurar el secreto de sesión.');const key=await crypto.subtle.importKey('raw',encoder.encode(valueSecret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return base64url(new Uint8Array(await crypto.subtle.sign('HMAC',key,encoder.encode(value))))}
+export async function hashPassword(password:string,salt=base64url(crypto.getRandomValues(new Uint8Array(18)))){const key=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:encoder.encode(salt),iterations:210000,hash:'SHA-256'},key,256);return{salt,hash:base64url(new Uint8Array(bits))}}
+export async function verifyPassword(password:string,salt:string,expected:string){return (await hashPassword(password,salt)).hash===expected}
+export async function createSession(user:{id:string;username:string;display_name:string;role:'operario'|'coordinador'|'admin';permissions_json:string}){const payload=encodePayload({userId:user.id,username:user.username,displayName:user.display_name,role:user.role,permissions:JSON.parse(user.permissions_json),exp:Date.now()+8*60*60*1000});return`${payload}.${await signature(payload)}`}
+async function readSession(token:string|undefined):Promise<SessionPayload|null>{if(!token)return null;const [payload,sig]=token.split('.');if(!payload||!sig||await signature(payload)!==sig)return null;try{const encoded=payload.replaceAll('-','+').replaceAll('_','/').padEnd(Math.ceil(payload.length/4)*4,'='),parsed=JSON.parse(atob(encoded)) as SessionPayload;return parsed.exp>Date.now()?parsed:null}catch{return null}}
+export function sessionCookie(token:string){return`${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=28800`}export function clearSessionCookie(){return`${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`}
+export async function currentProfile():Promise<ProfileRow|null>{const requestHeaders=await headers(),cookie=requestHeaders.get('cookie')||'',token=cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length+1),session=await readSession(token);if(!session)return null;const now=new Date().toISOString();return{id:session.userId,user_id:session.userId,email:'',display_name:session.displayName,role:session.role,permissions_json:JSON.stringify(session.permissions),status:'active',created_at:now,updated_at:now}}
+export function publicProfile(p:ProfileRow){return{id:p.id,email:p.email,displayName:p.display_name,role:p.role==='manager'?'admin':p.role,permissions:JSON.parse(p.permissions_json) as string[],status:p.status,createdAt:p.created_at,updatedAt:p.updated_at}}
+export async function requireRole(...roles:Array<'operario'|'coordinador'|'admin'>){const p=await currentProfile();return p&&p.status==='active'&&roles.includes((p.role==='manager'?'admin':p.role) as never)?p:null}export const requireManager=()=>requireRole('admin');
+export async function securityAudit(action:string,targetType?:string,targetId?:string,detail:Record<string,unknown>={}){const {ensureSchema,getD1}=await import('../../../db/runtime');await ensureSchema();const p=await currentProfile(),h=await headers();await getD1().prepare('INSERT INTO security_audit (id,user_id,action,target_type,target_id,correlation_id,detail_json,ip_address,created_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),p?.id??null,action,targetType??null,targetId??null,crypto.randomUUID(),JSON.stringify(detail),h.get('cf-connecting-ip'),new Date().toISOString()).run()}
