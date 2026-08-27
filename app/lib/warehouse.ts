@@ -88,12 +88,15 @@ export async function createLocation(input:{code:string;zone:string;aisle:string
   return location;
 }
 
+export async function importLocationMaster(rows:Array<{key:string;aisle:string;level:string;number:string;coordinate:string;maxParcels?:number;maxWeight?:number}>){for(const row of rows){if(await db.locations.where('code').equals(row.coordinate.toUpperCase()).first())continue;await createLocation({code:row.coordinate,zone:'MAESTRO',aisle:row.aisle,module:'',level:row.level,slot:row.number,capacity:row.maxParcels||1,multiple:false});const item=await db.locations.where('code').equals(row.coordinate.toUpperCase()).first();if(item){const updated={...item,masterKey:row.key,coordinate:row.coordinate,maxParcels:row.maxParcels,maxWeight:row.maxWeight,updatedAt:iso(),version:item.version+1};await db.locations.put(updated);await db.operations.add(operation('location',updated))}}}
+
 export async function locatePallet(palletId:string,locationId:string,operator:string,reason='Ubicación confirmada') {
   const [pallet,location]=await Promise.all([db.pallets.get(palletId),db.locations.get(locationId)]);
   if(!pallet) throw new Error('Palé no encontrado.'); if(!location) throw new Error('Ubicación no encontrada.');
   if(!pallet.scanClosedAt) throw new Error('Cierra primero el palé después de escanear todos sus bultos.');
   if(location.status==='bloqueada') throw new Error('La ubicación está bloqueada.');
-  if(location.status==='ocupada'&&!location.multiple&&pallet.locationId!==location.id) throw new Error('La ubicación ya está ocupada.');
+  if(location.status==='ocupada'&&pallet.locationId!==location.id) throw new Error('La ubicación ya está ocupada.');
+  if(location.maxParcels&&pallet.parcels>location.maxParcels)throw new Error(`El palé tiene ${pallet.parcels} bultos y el hueco admite ${location.maxParcels}.`);
   const now=iso(); const previous=pallet.locationId;
   const updatedPallet:Pallet={...pallet,locationId:location.id,status:'ubicado',locatedAt:now,updatedAt:now,version:pallet.version+1,operator};
   const updatedLocation:Location={...location,status:'ocupada',updatedAt:now,version:location.version+1};

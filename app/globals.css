@@ -153,6 +153,7 @@ input,select,textarea { width:100%; min-height:46px; padding:10px 12px; color:va
 .barcode-preview.error { border-left:5px solid #b84332; }
 .status-en_suelo { color:#70450a; background:#fff0c9; }
 .role-operario .record-card .danger { display:none; }
+.heat-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.7rem;margin-top:1rem}.heat-map article{display:flex;flex-direction:column;padding:1rem;border-radius:12px;border:1px solid var(--line)}
 
 @media (max-width:860px) {
   .barcode-rule-grid { grid-template-columns:1fr 1fr; }
