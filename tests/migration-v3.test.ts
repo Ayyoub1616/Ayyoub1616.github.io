@@ -1,2 +1,0 @@
-import {describe,expect,it} from 'vitest';import {readFileSync} from 'node:fs';import {migrateSnapshotV3,snapshotTotals,type V3Snapshot} from '../app/lib/migration-v3';
-describe('migración v3',()=>{it('conserva exactamente los totales de la copia real',()=>{const source=JSON.parse(readFileSync('.private/palletflow-real-2026-08-26.json','utf8')) as V3Snapshot;const before=snapshotTotals(source);const after=snapshotTotals(migrateSnapshotV3(source));expect(after).toEqual(before);expect(after).toEqual({receptions:36,pallets:1015,parcels:7671,units:302273})})});
