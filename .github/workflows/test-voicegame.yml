@@ -1,4 +1,5 @@
-name: Verify VoiceGame published website
+name: Verify VoiceGame public website
+
 on:
   push:
     branches: [main]
@@ -14,44 +15,33 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify live game, both modes, scores and styles over HTTPS
+      - name: Verify published game in HTTPS
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://ayyoub1616.github.io/voicegame'
-          for attempt in {1..15}; do
+          for attempt in {1..20}; do
             if curl -fsSL --max-time 15 "$BASE/" -o /tmp/voicegame.html &&
-              grep -q 'id="kind-normal"' /tmp/voicegame.html &&
-              grep -q 'id="kind-reverse"' /tmp/voicegame.html &&
-              grep -q 'id="score-board"' /tmp/voicegame.html &&
+              grep -q 'id="recordButton"' /tmp/voicegame.html &&
+              grep -q 'id="playOriginal"' /tmp/voicegame.html &&
+              grep -q 'id="playReverse"' /tmp/voicegame.html &&
+              ! grep -q 'id="player-name"' /tmp/voicegame.html &&
+              ! grep -q 'id="score-board"' /tmp/voicegame.html &&
+              ! grep -q 'scoring.js' /tmp/voicegame.html &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/voicegame.js &&
-              grep -q 'computeGameScore' /tmp/voicegame.js &&
-              grep -q 'Escuchar original' /tmp/voicegame.js &&
-              grep -q 'Escuchar en reversa' /tmp/voicegame.js &&
-              curl -fsSL --max-time 15 "$BASE/scoring.js" -o /tmp/voicegame-scoring.js &&
-              grep -q 'VoiceGameScoring' /tmp/voicegame-scoring.js &&
+              grep -q 'reverseAudio' /tmp/voicegame.js &&
+              grep -q 'MediaRecorder' /tmp/voicegame.js &&
               curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/voicegame.css &&
-              grep -q 'score-character' /tmp/voicegame.css; then
+              grep -q 'record-button' /tmp/voicegame.css &&
+              curl -fsSL --max-time 15 "$BASE/sw.js" -o /tmp/voicegame-sw.js &&
+              ! grep -q 'scoring.js' /tmp/voicegame-sw.js; then
               node --check /tmp/voicegame.js
-              node --check /tmp/voicegame-scoring.js
-              echo 'PASS: live VoiceGame v2, both modes, score engine and styles available over HTTPS'
+              node --check /tmp/voicegame-sw.js
+              echo 'PASS: one-button recorder, original/reverse controls, no user/scoring UI'
               exit 0
             fi
-            echo "Waiting for VoiceGame v2: attempt $attempt/15"
+            echo "Waiting for simple VoiceGame: $attempt/20"
             sleep 4
           done
-          echo 'FAIL: VoiceGame v2 not publicly available'
+          echo 'FAIL: New public game unavailable'
           exit 1
-      - name: Confirm audio similarity distinguishes matching from different recordings
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs=require('node:fs'),vm=require('node:vm'),window={};
-          vm.runInNewContext(fs.readFileSync('/tmp/voicegame-scoring.js','utf8'),{window});
-          const sample=(freq,mod)=>{const sr=8000,n=sr*3,d=new Float32Array(n);
-            for(let i=0;i<n;i++)d[i]=.2*Math.sin(i/sr*Math.PI*2*freq)*(.4+.6*Math.abs(Math.sin(i/sr*Math.PI*mod)));
-            return{sampleRate:sr,numberOfChannels:1,length:n,duration:3,getChannelData:()=>d};};
-          const a=sample(220,2),b=sample(1000,8),match=window.VoiceGameScoring.compare(a,a),different=window.VoiceGameScoring.compare(a,b);
-          if(match.score!==100||different.score>=match.score)throw Error('Invalid scoring behavior '+JSON.stringify({match,different}));
-          console.log('PASS: matching score='+match.score+' and different score='+different.score);
-          NODE

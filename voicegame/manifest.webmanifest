@@ -1,13 +1,13 @@
 {
-  "name": "REWIND! — Juego de imitación de voces",
+  "name": "REWIND! — Tu voz al revés",
   "short_name": "REWIND!",
-  "description": "Imita voces, gana puntos y compite con amigos con dos retos de audio.",
+  "description": "Graba tu voz y escúchala normal o al revés. Fácil y sin registro.",
   "lang": "es",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0c1020",
-  "theme_color": "#0d1022",
+  "background_color": "#0e1025",
+  "theme_color": "#0e1025",
   "icons": [
     {
       "src": "./assets/icon.svg",
