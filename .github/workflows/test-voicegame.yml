@@ -1,4 +1,4 @@
-name: Verify VoiceGame public website
+name: Verify REWIND audio and viral video
 
 on:
   push:
@@ -15,33 +15,71 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify published game in HTTPS
+      - name: Check published website and audio features over HTTPS
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://ayyoub1616.github.io/voicegame'
-          for attempt in {1..20}; do
+          for attempt in {1..30}; do
             if curl -fsSL --max-time 15 "$BASE/" -o /tmp/voicegame.html &&
               grep -q 'id="recordButton"' /tmp/voicegame.html &&
-              grep -q 'id="playOriginal"' /tmp/voicegame.html &&
-              grep -q 'id="playReverse"' /tmp/voicegame.html &&
+              grep -q 'id="cleanToggle"' /tmp/voicegame.html &&
+              grep -q 'id="selfieToggle"' /tmp/voicegame.html &&
+              grep -q 'id="shareTikTok"' /tmp/voicegame.html &&
+              grep -q 'id="saveAudio"' /tmp/voicegame.html &&
               ! grep -q 'id="player-name"' /tmp/voicegame.html &&
               ! grep -q 'id="score-board"' /tmp/voicegame.html &&
-              ! grep -q 'scoring.js' /tmp/voicegame.html &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/voicegame.js &&
-              grep -q 'reverseAudio' /tmp/voicegame.js &&
-              grep -q 'MediaRecorder' /tmp/voicegame.js &&
+              grep -q 'reverseBuffer' /tmp/voicegame.js &&
+              grep -q 'noiseSuppression' /tmp/voicegame.js &&
+              grep -q 'OfflineAudioContext' /tmp/voicegame.js &&
+              grep -q 'captureStream' /tmp/voicegame.js &&
               curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/voicegame.css &&
-              grep -q 'record-button' /tmp/voicegame.css &&
-              curl -fsSL --max-time 15 "$BASE/sw.js" -o /tmp/voicegame-sw.js &&
-              ! grep -q 'scoring.js' /tmp/voicegame-sw.js; then
+              grep -q 'share-zone' /tmp/voicegame.css; then
               node --check /tmp/voicegame.js
-              node --check /tmp/voicegame-sw.js
-              echo 'PASS: one-button recorder, original/reverse controls, no user/scoring UI'
+              echo "PASS: live REWIND, noise filter, video sharing, original and reverse"
               exit 0
             fi
-            echo "Waiting for simple VoiceGame: $attempt/20"
+            echo "Waiting for Pages release, attempt $attempt/30"
             sleep 4
           done
-          echo 'FAIL: New public game unavailable'
+          echo "FAIL: New public game has not propagated"
           exit 1
+      - name: Install browser test helper
+        run: npm install --prefix /tmp/voicegame-e2e --no-audit --no-fund playwright@1.56.1
+      - name: Exercise microphone and audio playback in headless Chrome
+        shell: bash
+        run: |
+          cat > /tmp/voicegame-e2e/test.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
+            const context=await browser.newContext({permissions:['microphone','camera'],acceptDownloads:true});
+            const page=await context.newPage();
+            const errors=[];
+            page.on('pageerror',e=>errors.push(e.message));
+            await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
+            await page.locator('#recordButton').click();
+            await page.waitForFunction(()=>document.getElementById('recordText').textContent==='DETENER',{timeout:15000});
+            await page.waitForTimeout(1700);
+            await page.locator('#recordButton').click();
+            await page.locator('#playPanel').waitFor({state:'visible',timeout:18000});
+            await page.locator('#playOriginal').click();
+            await page.waitForTimeout(250);
+            await page.locator('#playReverse').click();
+            await page.waitForTimeout(300);
+            await page.locator('#cleanToggle').click();
+            await page.locator('#playPanel').waitFor({state:'visible',timeout:18000});
+            await page.locator('#clipNormal').click();
+            const download=page.waitForEvent('download',{timeout:30000});
+            await page.locator('#makeVideo').click();
+            const file=await download;
+            if(!/\.(mp4|webm)$/.test(file.suggestedFilename()))throw Error('Video filename incorrect: '+file.suggestedFilename());
+            const failure=await page.locator('#errorMessage').textContent();
+            if(failure?.trim())throw Error('Page error: '+failure);
+            if(errors.length)throw Error('JavaScript page errors: '+errors.join('; '));
+            console.log('PASS: microphone, capture, normal/reverse playback, filter switch, vertical video download '+file.suggestedFilename());
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          node /tmp/voicegame-e2e/test.cjs
