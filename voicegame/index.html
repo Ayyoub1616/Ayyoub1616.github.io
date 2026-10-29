@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1022" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="REWIND!" />
+  <meta name="description" content="¡El reto de voz al revés! Graba una frase, escucha el audio invertido, imítalo y descubre el divertido resultado. Gratis y sin registro." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="REWIND! — El reto de audio al revés" />
+  <meta property="og:description" content="Graba, invierte, imita y sorpréndete con el resultado. Juega gratis desde el móvil." />
+  <title>REWIND! 🎙️ — Juego de audio al revés</title>
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./assets/icon.svg" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="./app.js" defer></script>
+</head>
+<body>
+<div class="ambient ambient-a" aria-hidden="true"></div>
+<div class="ambient ambient-b" aria-hidden="true"></div>
+<div class="page">
+  <header class="topbar">
+    <a class="brand" href="#inicio" aria-label="REWIND, inicio">
+      <span class="brand-icon" aria-hidden="true">↶</span><span>REWIND<span class="brand-punct">!</span></span>
+    </a>
+    <nav class="navlinks" aria-label="Principal"><a href="#como-funciona">Cómo jugar</a><a href="#preguntas">Preguntas</a></nav>
+    <a class="top-cta" href="#juego">Jugar gratis <span aria-hidden="true">↗</span></a>
+  </header>
+  <main id="inicio">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="live-dot"></span> EL RETO VIRAL DE LA VOZ</span>
+        <h1 id="hero-title">Tu voz nunca<br />sonó tan <span class="gradient-text">al revés.</span></h1>
+        <p class="lead">Graba una frase y escúchala original o invertida. ¡Después intenta imitarla! Dale la vuelta a tu intento y prepárate para reírte. 😂</p>
+        <div class="hero-actions"><a class="btn btn-primary" href="#juego">🎙️ Empezar el reto <span aria-hidden="true">→</span></a><span class="hero-note">Gratis · Sin registro · En tu móvil</span></div>
+        <div class="hero-mini"><span class="user-faces" aria-hidden="true"><i>😎</i><i>😆</i><i>🤯</i></span><span>Perfecto para jugar con amigos</span></div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+        <div class="art-center"><span class="art-mic">🎙️</span><div class="art-bars"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div></div>
+        <div class="art-bubble bubble-top">¡WOOOW! <span>⚡</span></div>
+        <div class="art-bubble bubble-bottom">⏪ ¡Al revés!</div>
+        <div class="art-star star-a">✦</div><div class="art-star star-b">✷</div>
+      </div>
+    </section>
+
+    <section id="juego" class="game-section" aria-labelledby="game-title">
+      <div class="section-title"><span class="small-kicker">LA DIVERSIÓN EMPIEZA AQUÍ</span><h2 id="game-title">¿Aceptas el <span class="gradient-text">desafío?</span></h2><p>No hay que instalar nada. Solo necesitas tu voz.</p></div>
+      <div class="game-shell">
+        <div class="game-top"><div class="game-chip"><span class="bolt">⚡</span> REWIND STUDIO <span class="game-chip-b">BETA</span></div><div class="round-pill" id="round-pill">Ronda 01</div></div>
+        <div class="mode-switch" role="tablist" aria-label="Modos de juego">
+          <button id="tab-challenge" class="mode active" role="tab" aria-selected="true" aria-controls="panel-challenge" type="button">🎮 Desafío de voz</button>
+          <button id="tab-flip" class="mode" role="tab" aria-selected="false" aria-controls="panel-flip" type="button">🔄 Invertir un audio</button>
+        </div>
+        <div id="panel-challenge" role="tabpanel" aria-labelledby="tab-challenge">
+          <div class="steps" aria-label="Progreso del reto">
+            <div class="step active" data-step="original"><span>1</span><small>Grabar</small></div><div class="step-line"></div>
+            <div class="step" data-step="listen"><span>2</span><small>Escuchar</small></div><div class="step-line"></div>
+            <div class="step" data-step="attempt"><span>3</span><small>Imitar</small></div><div class="step-line"></div>
+            <div class="step" data-step="result"><span>4</span><small>Resultado</small></div>
+          </div>
+          <div id="status-area" aria-live="polite" class="status-area"><span class="status-icon">🎙️</span><h3>Primero, graba tu voz</h3><p>Pulsa el micrófono y di una frase de forma natural.</p></div>
+          <div class="prompt-box" id="prompt-box"><div class="prompt-text"><span class="prompt-label">💡 ¿NO SABES QUÉ DECIR?</span><strong id="phrase">La vaca cósmica baila salsa</strong></div><button class="refresh-btn" type="button" id="new-phrase" aria-label="Cambiar frase" title="Otra frase">↻</button></div>
+          <div class="wave-box" id="wave-box"><canvas id="waveform" width="760" height="154" role="img" aria-label="Visualizador de audio"></canvas><div class="wave-bottom"><span id="wave-label">Preparado para grabar</span><span id="time-counter">00:00 / 00:12</span></div></div>
+          <div class="mic-area" id="mic-area"><button id="record-btn" class="record-btn" type="button" aria-label="Empezar a grabar"><span id="record-glyph">🎙️</span></button><p id="record-hint">Toca para grabar · Máximo 12 segundos</p></div>
+          <div class="game-controls" id="game-controls" aria-live="polite"></div>
+          <div class="error-bar" id="error-bar" role="alert" hidden></div>
+          <div class="privacy-line">🔒 Tus grabaciones se procesan en tu dispositivo. No se suben a ningún servidor.</div>
+        </div>
+        <div id="panel-flip" role="tabpanel" aria-labelledby="tab-flip" hidden>
+          <div class="flip-intro"><span class="flip-emoji">🎧</span><h3>¡Dale la vuelta a cualquier audio!</h3><p>Selecciona un archivo de audio de tu dispositivo y elige si quieres escucharlo normal o al revés. También puedes descargar el resultado.</p></div>
+          <label class="upload-zone" id="upload-zone" for="audio-upload"><span class="upload-symbol">📁</span><strong>Elegir un archivo de audio</strong><span>MP3, M4A, WAV y otros formatos compatibles con tu navegador</span><input type="file" id="audio-upload" accept="audio/*" /></label>
+          <p class="file-name" id="file-name">Todavía no has seleccionado ningún archivo.</p>
+          <div id="flip-actions" class="game-controls"></div>
+          <div class="error-bar" id="upload-error" role="alert" hidden></div>
+          <div class="privacy-line">🔒 El archivo no sale de tu dispositivo. Límite recomendado: 25 MB.</div>
+        </div>
+      </div>
+      <p class="game-footnote">✅ Sin descargas obligatorias &nbsp; · &nbsp; 🎤 Micrófono solo cuando tú lo permitas &nbsp; · &nbsp; 📱 Compatible con móviles modernos</p>
+    </section>
+
+    <section class="how" id="como-funciona"><div class="section-title"><span class="small-kicker">SÚPER SENCILLO</span><h2>4 pasos. <span class="gradient-text">Muchas risas.</span></h2></div>
+      <div class="how-grid"><article class="how-card"><div class="how-number">01</div><span class="how-icon">🎙️</span><h3>Graba</h3><p>Di algo divertido. Cuanto más rara sea la frase, mejor.</p></article><article class="how-card"><div class="how-number">02</div><span class="how-icon">⏪</span><h3>Escucha</h3><p>Escucha tu grabación normal o en reversa. ¡Tú eliges!</p></article><article class="how-card"><div class="how-number">03</div><span class="how-icon">😝</span><h3>Imita</h3><p>Intenta repetir exactamente los sonidos invertidos.</p></article><article class="how-card"><div class="how-number">04</div><span class="how-icon">🤣</span><h3>¡Descúbrelo!</h3><p>Compara la imitación original con su reversa.</p></article></div>
+    </section>
+
+    <section class="faq" id="preguntas"><div class="section-title"><span class="small-kicker">TODO CLARO</span><h2>Preguntas frecuentes</h2></div><div class="faq-list"><details><summary>¿Es gratis jugar a REWIND!?</summary><p>Sí, esta primera versión es gratuita y no requiere crear una cuenta.</p></details><details><summary>¿Se guarda mi voz en internet?</summary><p>No. En esta versión las grabaciones se procesan exclusivamente en el navegador de tu dispositivo. Se borran al recargar o cerrar la página. Si compartes un audio mediante otra aplicación, se aplican las condiciones de esa aplicación.</p></details><details><summary>¿Puedo instalarlo como una app en mi iPhone?</summary><p>Sí. Abre la web en Safari, pulsa Compartir y selecciona «Añadir a pantalla de inicio». En Android puedes usar la opción «Instalar aplicación» del navegador si aparece.</p></details><details><summary>¿Por qué no puedo grabar?</summary><p>Debes permitir el acceso al micrófono. La web necesita estar alojada con HTTPS (o abrirse desde localhost durante el desarrollo). Comprueba que no hayas bloqueado el permiso en los ajustes del navegador.</p></details></div></section>
+    <section class="bottom-cta"><div><span class="small-kicker">¿PREPARADO?</span><h2>Tu próximo audio puede<br /><span class="gradient-text">ser una locura.</span></h2><p>Reta a alguien y descubrid quién domina el idioma del revés.</p></div><a class="btn btn-primary" href="#juego">🎤 Jugar ahora <span aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="footer"><a class="brand footer-brand" href="#inicio"><span class="brand-icon">↶</span> REWIND<span class="brand-punct">!</span></a><p>Una pequeña idea para pasar grandes ratos. ❤️</p><div><a href="./privacidad.html">Privacidad</a><a href="#como-funciona">Cómo jugar</a></div><span class="footer-copy">© <span id="year"></span> REWIND! — Versión demo</span></footer>
+</div>
+</body>
+</html>
