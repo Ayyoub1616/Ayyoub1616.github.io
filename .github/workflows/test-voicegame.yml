@@ -75,10 +75,23 @@ jobs:
             await page.locator('#makeVideo').click();
             const file=await download;
             if(!/\.(mp4|webm)$/.test(file.suggestedFilename()))throw Error('Video filename incorrect: '+file.suggestedFilename());
+            // Selfie path: verify fake front-camera recording and video creation.
+            await page.locator('#selfieToggle').click();
+            await page.locator('#recordButton').click();
+            await page.waitForFunction(()=>document.getElementById('recordText').textContent==='DETENER',{timeout:15000});
+            await page.waitForTimeout(1600);
+            await page.locator('#recordButton').click();
+            await page.locator('#playPanel').waitFor({state:'visible',timeout:18000});
+            await page.locator('#selfieBox').waitFor({state:'visible',timeout:18000});
+            await page.locator('#clipReverse').click();
+            const selfieDownload=page.waitForEvent('download',{timeout:30000});
+            await page.locator('#makeVideo').click();
+            const second=await selfieDownload;
+            if(!/\.(mp4|webm)$/.test(second.suggestedFilename()))throw Error('Selfie video filename incorrect: '+second.suggestedFilename());
             const failure=await page.locator('#errorMessage').textContent();
             if(failure?.trim())throw Error('Page error: '+failure);
             if(errors.length)throw Error('JavaScript page errors: '+errors.join('; '));
-            console.log('PASS: microphone, capture, normal/reverse playback, filter switch, vertical video download '+file.suggestedFilename());
+            console.log('PASS: microphone, clean audio, normal/reverse playback, animated vertical video and selfie video '+file.suggestedFilename());
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
