@@ -38,6 +38,13 @@
   let lastError = '';
   let phraseIndex = 0;
   let busy = false;
+  let challengeKind = 'normal';
+  let lastScores = null;
+  const PLAYER_KEY = 'voicegame-local-profiles-v2';
+  let profiles = [];
+  let activeProfile = 'Invitado';
+  let activeAvatar = '😎';
+
 
   const canvas = $('waveform');
   const painter = canvas.getContext('2d');
@@ -246,7 +253,15 @@
             step = 'listen';
           } else {
             attempt = decoded;
+            const candidate = computeGameScore();
+            if (!candidate?.valid) {
+              attempt = null;
+              throw new Error(candidate?.reason || 'No se pudo calcular la puntuación. Prueba otra imitación.');
+            }
+            lastScores = candidate;
+            rememberScore(candidate.score);
             step = 'result';
+            celebrate(candidate.score);
           }
           elapsed = 0;
           setError('');
@@ -363,12 +378,148 @@
         { group: '😝 TU IMITACIÓN' },
         ...playbackOptions(attempt, 'attempt'),
         { group: '✨ COMPARTIR O VOLVER A JUGAR' },
-        { label: '📤 Compartir resultado en reversa', style: 'secondary', run: () => shareAudio(attempt, 'rewind-mi-resultado.wav', true) },
-        { label: '⬇️ Descargar resultado en reversa', run: () => downloadAudio(attempt, 'rewind-mi-resultado.wav', true) },
+        { label: '🏆 Compartir mi puntuación y retar a un amigo', style: 'main', run: shareScore },
+        { label: '📤 Compartir audio de mi imitación', style: 'secondary', run: () => shareAudio(attempt, 'rewind-mi-resultado.wav', challengeKind === 'reverse') },
+        { label: '⬇️ Descargar mi imitación', run: () => downloadAudio(attempt, 'rewind-mi-resultado.wav', challengeKind === 'reverse') },
         { label: '🎙️ Repetir imitación', run: () => { stopPlayback(); attempt = null; step = 'attempt'; render(); } },
         { label: '⚡ Nuevo desafío', style: 'main', run: () => resetGame(true) }
       ]);
     }
+  }
+
+
+  // Optional user profiles and local leaderboard. No audio, accounts or scores go to a server.
+  function storeProfiles() {
+    try { localStorage.setItem(PLAYER_KEY, JSON.stringify({ profiles: profiles.slice(0, 30), activeProfile, activeAvatar })); }
+    catch (_) { /* Browsers can disable storage; the game still works. */ }
+  }
+  function loadProfiles() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PLAYER_KEY) || '{}');
+      profiles = Array.isArray(raw.profiles) ? raw.profiles.filter(p => p && typeof p.name === 'string' && p.name.length <= 18).slice(0, 30) : [];
+      if (typeof raw.activeProfile === 'string') activeProfile = raw.activeProfile.slice(0, 18);
+      if (typeof raw.activeAvatar === 'string' && [...raw.activeAvatar].length <= 3) activeAvatar = raw.activeAvatar;
+    } catch (_) { profiles = []; }
+    $('player-name').value = activeProfile === 'Invitado' ? '' : activeProfile;
+    $('player-avatar').value = [...$('player-avatar').options].some(o => o.value === activeAvatar) ? activeAvatar : '😎';
+    refreshRankings();
+  }
+  function savePlayer() {
+    const name = $('player-name').value.trim().replace(/\s+/g, ' ').slice(0, 18) || 'Invitado';
+    const avatar = $('player-avatar').value;
+    activeProfile = name;
+    activeAvatar = avatar;
+    const existing = profiles.find(p => p.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'));
+    if (existing) {
+      activeProfile = existing.name;
+      existing.avatar = avatar;
+    } else if (name !== 'Invitado') {
+      profiles.push({ name, avatar, best: 0, total: 0, games: 0 });
+    }
+    $('player-name').value = activeProfile === 'Invitado' ? '' : activeProfile;
+    storeProfiles();
+    refreshRankings();
+  }
+  function refreshRankings() {
+    const list = $('local-ranking'); list.replaceChildren();
+    const ranked = [...profiles].filter(p => p.games > 0).sort((a,b) => b.best-a.best || b.total/Math.max(1,b.games)-a.total/Math.max(1,a.games)).slice(0, 7);
+    if (!ranked.length) { const li=document.createElement('li');li.textContent='¡Juega tu primera partida para entrar en el ranking!';list.append(li); }
+    else ranked.forEach((p,i) => {
+      const li = document.createElement('li');
+      const left=document.createElement('span');left.textContent=(i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':i+1+'. ')+(p.avatar||'😎')+' '+p.name;
+      const right=document.createElement('strong');right.textContent=String(p.best)+'/100';
+      li.append(left,right);list.append(li);
+    });
+    const active=profiles.find(p=>p.name===activeProfile);
+    $('player-stats').textContent=active && active.games
+      ? '⭐ '+activeProfile+' · Mejor: '+active.best+'/100 · '+active.games+' partidas'
+      : '🎮 '+activeProfile+' · Sin partidas todavía. Ranking solo de este dispositivo.';
+  }
+  function rememberScore(value) {
+    let p=profiles.find(p=>p.name.toLocaleLowerCase('es')===activeProfile.toLocaleLowerCase('es'));
+    if(!p){ p={name:activeProfile,avatar:activeAvatar,best:0,total:0,games:0};profiles.push(p); }
+    p.avatar=activeAvatar;
+    p.games=(Number(p.games)||0)+1;
+    p.best=Math.max(Number(p.best)||0,value);
+    p.total=(Number(p.total)||0)+value;
+    profiles=profiles.slice(-30);
+    storeProfiles();refreshRankings();
+  }
+  function setChallengeKind(kind) {
+    if (busy || recorder || step === 'result') return;
+    challengeKind=kind;
+    updateKindUI();
+    if(step !== 'original')render();
+  }
+  function updateKindUI() {
+    $('kind-normal').classList.toggle('active',challengeKind==='normal');
+    $('kind-reverse').classList.toggle('active',challengeKind==='reverse');
+    $('kind-normal').setAttribute('aria-pressed',String(challengeKind==='normal'));
+    $('kind-reverse').setAttribute('aria-pressed',String(challengeKind==='reverse'));
+    $('kind-normal').disabled=!!recorder || busy || step==='result';
+    $('kind-reverse').disabled=!!recorder || busy || step==='result';
+    $('kind-explainer').textContent=challengeKind==='normal'
+      ? '🎯 Imita la voz normal. El juego compara directamente la primera grabación con tu imitación, SIN invertirla.'
+      : '⏪ Escucha la primera voz al revés e imita ese sonido. Para evaluar el reto, el juego invierte tu imitación y la compara con la primera voz.';
+  }
+  function computeGameScore() {
+    if (!original || !attempt || !window.VoiceGameScoring) return null;
+    const scoringTarget=challengeKind==='normal' ? attempt : reverseBuffer(attempt);
+    return window.VoiceGameScoring.compare(original,scoringTarget);
+  }
+  function scoreReaction(value) {
+    if(value>=90)return{icon:'🦄',title:'¡LEYENDA DE LA VOZ! 🏆',message:'¡Qué brutal! ¡Casi parece la misma grabación!'};
+    if(value>=78)return{icon:'🦊',title:'¡LO HAS CLAVADO! 🎉',message:'¡El zorro está celebrando tu imitación!'};
+    if(value>=62)return{icon:'🐼',title:'¡VAS MUY BIEN! ✨',message:'¡El panda te da un aplauso gigante!'};
+    if(value>=43)return{icon:'🐵',title:'¡QUÉ PERSONAJE! 😂',message:'¡Buen intento! El mono se viene arriba.'};
+    if(value>=23)return{icon:'🐸',title:'¡JAJA, CASI! 🤭',message:'¡La rana quiere una revancha!'};
+    return{icon:'🦥',title:'¡HA SIDO UNA LOCURA! 🤣',message:'¡El perezoso está alucinando! ¡Prueba otra vez!'};
+  }
+  function celebrate(value) {
+    const area=$('confetti-layer');area.replaceChildren();
+    if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+    const count=value>=80?45:value>=50?25:12;
+    const colors=['#ff65aa','#ffd66e','#9d89ff','#62e1c7','#ffffff'];
+    for(let i=0;i<count;i++){
+      const bit=document.createElement('span');bit.className='confetti-bit';
+      bit.style.setProperty('--left',Math.random()*100+'%');
+      bit.style.setProperty('--delay',(Math.random()*.75)+'s');
+      bit.style.setProperty('--duration',(1.9+Math.random()*1.4)+'s');
+      bit.style.setProperty('--color',colors[i%colors.length]);
+      area.append(bit);
+    }
+  }
+  function scoreDisplay() {
+    const board=$('score-board');
+    board.hidden=step!=='result' || !lastScores?.valid;
+    if(board.hidden)return;
+    const v=lastScores.score, reaction=scoreReaction(v);
+    $('score-character').textContent=reaction.icon;
+    $('score-title').textContent=reaction.title;
+    $('score-value').textContent=String(v);
+    $('score-detail').textContent=reaction.message;
+    const bars=$('score-bars');bars.replaceChildren();
+    for(const [label,val] of [['🎵 Ritmo y pausas',lastScores.rhythm],['🔊 Parecido acústico',lastScores.sound],['⏱️ Duración',lastScores.duration]]){
+      const row=document.createElement('div');row.className='score-metric';
+      const heading=document.createElement('div');heading.className='score-metric-label';
+      const title=document.createElement('span');title.textContent=label;
+      const amount=document.createElement('span');amount.textContent=val+'%';heading.append(title,amount);
+      const meter=document.createElement('div');meter.className='score-meter';
+      const fill=document.createElement('span');fill.style.width=val+'%';meter.append(fill);row.append(heading,meter);bars.append(row);
+    }
+    $('score-alternative').textContent=challengeKind==='normal'
+      ? '🎯 Modo voz real: la puntuación compara tus dos audios ORIGINALES, sin invertir ninguno.'
+      : '⏪ Modo reversa: la puntuación compara tu imitación invertida con la primera grabación.';
+  }
+  async function shareScore() {
+    if(!lastScores?.valid)return;
+    const label=challengeKind==='normal'?'imitando la voz real':'imitando un audio en reversa';
+    const message='🎙️ ¡He conseguido '+lastScores.score+'/100 en REWIND! '+scoreReaction(lastScores.score).icon+' ('+label+')\n¿Puedes superarme? 👇\nhttps://ayyoub1616.github.io/voicegame/';
+    try {
+      if(navigator.share)await navigator.share({title:'¡Supérame en REWIND!',text:message});
+      else if(navigator.clipboard?.writeText) {await navigator.clipboard.writeText(message);setError('✅ ¡Reto copiado! Pégalo en WhatsApp o donde quieras.');}
+      else setError('Comparte esta dirección con tus amigos: https://ayyoub1616.github.io/voicegame/');
+    } catch(e) {if(e.name!=='AbortError')setError('No se pudo compartir el reto.');}
   }
 
   function render() {
@@ -384,9 +535,9 @@
     });
     const header = {
       original: ['🎙️', 'Primero, graba tu voz', 'Pulsa el micrófono y di una frase de forma natural.'],
-      listen: ['🎧', 'Escucha la original o en reversa', 'Tú eliges qué versión escuchar. Después, intenta imitar el sonido al revés.'],
-      attempt: ['😝', '¡Te toca imitar el sonido!', 'Puedes repetir la original y la reversa antes de grabar tu imitación.'],
-      result: ['🎉', '¡Ha llegado el gran momento!', 'Escucha y compara las dos grabaciones tanto originales como en reversa.']
+      listen: ['🎧', '¡Escucha y prepárate!', challengeKind === 'normal' ? 'Imita la voz ORIGINAL para conseguir puntos. También puedes escuchar el audio invertido.' : 'Escucha la versión INVERSA para intentar imitarla.'],
+      attempt: ['😝', '¡Te toca imitar el sonido!', challengeKind === 'normal' ? 'Graba tu imitación de la voz REAL. Compararemos directamente los dos audios normales.' : 'Graba tu imitación del sonido INVERTIDO.'],
+      result: ['🏆', '¡Ha llegado tu puntuación!', challengeKind === 'normal' ? 'Tu resultado compara las dos voces normales, sin invertirlas.' : 'Tu resultado compara la voz original con tu intento invertido.']
     }[step];
     const status = $('status-area');
     status.querySelector('.status-icon').textContent = header[0];
@@ -402,12 +553,14 @@
       drawWave(b);
     }
     renderControls();
+    updateKindUI();
+    scoreDisplay();
     if (step === 'result') {
       if (!$('result-banner')) {
         const banner = document.createElement('div');
         banner.className = 'result-banner';
         banner.id = 'result-banner';
-        banner.innerHTML = '<span class="sparkle">✨</span><span><strong>¡Reto completado!</strong> Puedes escuchar las dos grabaciones normal y en reversa, comparar y compartir el resultado.</span>';
+        banner.innerHTML = '<span class="sparkle">✨</span><span><strong>¡Reto completado!</strong> Mira tu puntuación, compara las dos grabaciones y reta a tus amigos.</span>';
         $('wave-box').insertAdjacentElement('afterend', banner);
       }
     } else { $('result-banner')?.remove(); }
@@ -419,6 +572,8 @@
     disposeStream();
     original = null;
     attempt = null;
+    lastScores = null;
+    $('confetti-layer').replaceChildren();
     if (nextRound) { round++; nextPhrase(); }
     step = 'original';
     setError('');
@@ -523,6 +678,10 @@
     else if (step === 'original' || step === 'attempt') beginRecording(step);
   });
   $('new-phrase').addEventListener('click', nextPhrase);
+  $('kind-normal').addEventListener('click', () => setChallengeKind('normal'));
+  $('kind-reverse').addEventListener('click', () => setChallengeKind('reverse'));
+  $('save-player').addEventListener('click', savePlayer);
+  $('player-name').addEventListener('keydown', e => { if(e.key === 'Enter') { e.preventDefault();savePlayer();$('player-name').blur(); } });
   $('tab-challenge').addEventListener('click', () => switchMode('challenge'));
   $('tab-flip').addEventListener('click', () => switchMode('flip'));
   $('audio-upload').addEventListener('change', async (event) => {
@@ -554,6 +713,7 @@
   $('year').textContent = new Date().getFullYear();
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeCanvas).observe(canvas);
   else window.addEventListener('resize', resizeCanvas);
+  loadProfiles();
   render();
   requestAnimationFrame(resizeCanvas);
 
