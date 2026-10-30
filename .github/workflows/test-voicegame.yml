@@ -1,4 +1,4 @@
-name: Verify REWIND audio and viral video
+name: Verify REWIND three-button game
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Check published website and audio features over HTTPS
+      - name: Verify published site and three simple buttons
         shell: bash
         run: |
           set -euo pipefail
@@ -23,76 +23,60 @@ jobs:
           for attempt in {1..30}; do
             if curl -fsSL --max-time 15 "$BASE/" -o /tmp/voicegame.html &&
               grep -q 'id="recordButton"' /tmp/voicegame.html &&
-              grep -q 'id="cleanToggle"' /tmp/voicegame.html &&
-              grep -q 'id="selfieToggle"' /tmp/voicegame.html &&
-              grep -q 'id="shareTikTok"' /tmp/voicegame.html &&
-              grep -q 'id="saveAudio"' /tmp/voicegame.html &&
-              ! grep -q 'id="player-name"' /tmp/voicegame.html &&
+              grep -q 'id="originalButton"' /tmp/voicegame.html &&
+              grep -q 'id="reverseButton"' /tmp/voicegame.html &&
+              ! grep -q 'id="shareTikTok"' /tmp/voicegame.html &&
               ! grep -q 'id="score-board"' /tmp/voicegame.html &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/voicegame.js &&
               grep -q 'reverseBuffer' /tmp/voicegame.js &&
               grep -q 'noiseSuppression' /tmp/voicegame.js &&
-              grep -q 'OfflineAudioContext' /tmp/voicegame.js &&
-              grep -q 'captureStream' /tmp/voicegame.js &&
               curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/voicegame.css &&
-              grep -q 'share-zone' /tmp/voicegame.css; then
+              grep -q '#dc4e4e' /tmp/voicegame.css &&
+              grep -q '#aad56d' /tmp/voicegame.css &&
+              grep -q '#6ec2d4' /tmp/voicegame.css; then
               node --check /tmp/voicegame.js
-              echo "PASS: live REWIND, noise filter, video sharing, original and reverse"
+              echo 'PASS: live three-button voice game'
               exit 0
             fi
-            echo "Waiting for Pages release, attempt $attempt/30"
+            echo "Waiting for Pages $attempt/30"
             sleep 4
           done
-          echo "FAIL: New public game has not propagated"
+          echo "FAIL: new site version not available"
           exit 1
-      - name: Install browser test helper
-        run: npm install --prefix /tmp/voicegame-e2e --no-audit --no-fund playwright@1.56.1
-      - name: Exercise microphone and audio playback in headless Chrome
+      - name: Install browser testing
+        run: npm install --prefix /tmp/rewind-test --no-audit --no-fund playwright@1.56.1
+      - name: Test recording original and reversed audio
         shell: bash
         run: |
-          cat > /tmp/voicegame-e2e/test.cjs <<'NODE'
+          cat > /tmp/rewind-test/test.cjs <<'NODE'
           const {chromium}=require('playwright');
           (async()=>{
             const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
-            const context=await browser.newContext({permissions:['microphone','camera'],acceptDownloads:true});
-            const page=await context.newPage();
-            const errors=[];
+            const ctx=await browser.newContext({permissions:['microphone']});
+            const page=await ctx.newPage(),errors=[];
             page.on('pageerror',e=>errors.push(e.message));
             await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
+            if(await page.locator('.tile').count()!==3)throw Error('Expected exactly three big buttons');
+            await page.locator('#originalButton').click();
+            if(!((await page.locator('#feedback').textContent()).includes('Primero')))throw Error('Expected prompt before recording');
             await page.locator('#recordButton').click();
-            await page.waitForFunction(()=>document.getElementById('recordText').textContent==='DETENER',{timeout:15000});
-            await page.waitForTimeout(1700);
+            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:15000});
+            await page.waitForTimeout(1800);
             await page.locator('#recordButton').click();
-            await page.locator('#playPanel').waitFor({state:'visible',timeout:18000});
-            await page.locator('#playOriginal').click();
-            await page.waitForTimeout(250);
-            await page.locator('#playReverse').click();
-            await page.waitForTimeout(300);
-            await page.locator('#cleanToggle').click();
-            await page.locator('#playPanel').waitFor({state:'visible',timeout:18000});
-            await page.locator('#clipNormal').click();
-            const download=page.waitForEvent('download',{timeout:30000});
-            await page.locator('#makeVideo').click();
-            const file=await download;
-            if(!/\.(mp4|webm)$/.test(file.suggestedFilename()))throw Error('Video filename incorrect: '+file.suggestedFilename());
-            // Selfie path: verify fake front-camera recording and video creation.
-            await page.locator('#selfieToggle').click();
-            await page.locator('#recordButton').click();
-            await page.waitForFunction(()=>document.getElementById('recordText').textContent==='DETENER',{timeout:15000});
-            await page.waitForTimeout(1600);
-            await page.locator('#recordButton').click();
-            await page.locator('#playPanel').waitFor({state:'visible',timeout:18000});
-            await page.locator('#selfieBox').waitFor({state:'visible',timeout:18000});
-            await page.locator('#clipReverse').click();
-            const selfieDownload=page.waitForEvent('download',{timeout:30000});
-            await page.locator('#makeVideo').click();
-            const second=await selfieDownload;
-            if(!/\.(mp4|webm)$/.test(second.suggestedFilename()))throw Error('Selfie video filename incorrect: '+second.suggestedFilename());
-            const failure=await page.locator('#errorMessage').textContent();
-            if(failure?.trim())throw Error('Page error: '+failure);
-            if(errors.length)throw Error('JavaScript page errors: '+errors.join('; '));
-            console.log('PASS: microphone, clean audio, normal/reverse playback, animated vertical video and selfie video '+file.suggestedFilename());
+            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Volver a grabar',{timeout:20000});
+            await page.locator('#originalButton').click();
+            await page.waitForFunction(()=>document.querySelector('#originalButton').getAttribute('aria-pressed')==='true',{timeout:8000});
+            await page.locator('#reverseButton').click();
+            await page.waitForFunction(()=>document.querySelector('#reverseButton').getAttribute('aria-pressed')==='true',{timeout:8000});
+            await page.locator('#filterButton').click();
+            if(!await page.locator('#filterPanel').isVisible())throw Error('Settings did not open');
+            await page.locator('#filterToggle').uncheck();
+            if(await page.locator('#reverseButton').getAttribute('aria-pressed')==='true')throw Error('Playback should stop on filter change');
+            await page.locator('#filterButton').click();
+            if(await page.locator('#filterPanel').isVisible())throw Error('Settings did not close');
+            if(errors.length)throw Error('Browser JS errors: '+errors.join('; '));
+            console.log('PASS: 3 buttons, microphone capture, original, reverse, settings and filtering');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-          node /tmp/voicegame-e2e/test.cjs
+          node /tmp/rewind-test/test.cjs

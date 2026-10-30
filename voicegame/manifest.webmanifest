@@ -1,13 +1,13 @@
 {
-  "name": "REWIND! — Reto viral de voz",
+  "name": "REWIND! — Tu voz al revés",
   "short_name": "REWIND!",
-  "description": "Graba tu voz más limpia, escúchala normal o en reversa, crea y comparte tu reto en vídeo.",
+  "description": "Tres botones: graba tu voz, escucha original o reversa.",
   "lang": "es",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#11122e",
-  "theme_color": "#11122e",
+  "background_color": "#eeeeee",
+  "theme_color": "#eeeeee",
   "icons": [
     {
       "src": "./assets/icon.svg",

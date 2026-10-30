@@ -2,14 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#11122e">
-  <meta name="description" content="🎙️ Graba tu voz limpia, escúchala al revés y crea retos en vídeo para compartir con tus amigos. REWIND! Gratis, sin registro.">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="REWIND! 🎙️ El reto de tu voz al revés">
-  <meta property="og:description" content="¿Te atreves a escucharte al revés? 😂 Graba, juega y comparte tu vídeo.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eeeeee">
+  <meta name="description" content="🎙️ Graba tu voz y escúchala normal o en reversa. Tres botones, un juego. Gratis y sin registro.">
+  <meta property="og:title" content="REWIND! — Tu voz al revés">
+  <meta property="og:description" content="🎙️ Graba ▶️ Escucha ⏪ Dale la vuelta. ¡Pruébalo!">
   <meta property="og:url" content="https://ayyoub1616.github.io/voicegame/">
-  <title>REWIND! ⚡ Graba · Reversa · Comparte</title>
+  <title>REWIND! · Graba y escucha al revés</title>
   <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
   <link rel="apple-touch-icon" href="./assets/icon.svg">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -17,86 +16,64 @@
   <script src="./app.js" defer></script>
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <a class="brand" href="./" aria-label="REWIND inicio"><span class="logo">↶</span>REWIND<span class="point">!</span></a>
-    <span class="live-label"><span class="tiny-live"></span> 🎮 JUEGA GRATIS</span>
-  </header>
-  <main>
-    <section class="hero" aria-labelledby="headline">
-      <div class="floater f1" aria-hidden="true">😂</div><div class="floater f2" aria-hidden="true">🌀</div><div class="floater f3" aria-hidden="true">🤯</div>
-      <div class="kicker">🔥 EL RETO DE AUDIO MÁS DIVERTIDO</div>
-      <h1 id="headline">Tu voz. <span class="headline-gradient">Otro universo.</span></h1>
-      <p>Graba, dale la vuelta al audio y crea un vídeo de reto para compartirlo. <strong>¡A ver quién se atreve! 😜</strong></p>
-    </section>
-
-    <section class="game-card" aria-label="Juego de voz">
-      <div class="card-top">
-        <div class="status-pill"><span class="dot"></span><span id="statusLabel">LISTO PARA GRABAR</span></div>
-        <span class="timer" id="clock">00:00</span>
-      </div>
-      <div class="challenge" id="challengeBox">
-        <div class="challenge-text"><span>🎲 RETO SUGERIDO</span><strong id="challengePhrase">¿Qué pasa, marcianos?</strong></div>
-        <button type="button" id="newChallenge" class="round-small" title="Cambiar reto" aria-label="Cambiar frase del reto">🔀</button>
-      </div>
-      <div id="reaction" class="reaction" aria-live="polite">🎤</div>
-      <h2 id="studioTitle" class="card-title">¡Toca el micro y sorpréndete!</h2>
-      <p id="studioSubtitle" class="card-subtitle">Habla cerca del teléfono para una grabación más clara.</p>
-      <div class="wave"><canvas id="waveform" width="660" height="145" aria-label="Visualización de la voz" role="img"></canvas></div>
-      <div class="record-wrap">
-        <button id="recordButton" class="record-button" type="button" aria-label="Grabar" aria-pressed="false">
-          <span class="record-emoji" id="recordSymbol">🎙️</span><span class="record-label" id="recordText">GRABAR</span>
+  <div class="page">
+    <header class="toolbar" aria-label="Barra de herramientas">
+      <button class="tool" type="button" id="helpButton" aria-label="Cómo funciona" aria-expanded="false" aria-controls="helpPanel">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8h22M5 16h22M5 24h22"/></svg>
+      </button>
+      <div class="toolbar-right">
+        <button class="tool" type="button" id="filterButton" aria-label="Opciones de voz" aria-expanded="false" aria-controls="filterPanel">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 8h24M4 16h24M4 24h24"/><circle cx="20" cy="8" r="3.2"/><circle cx="11" cy="16" r="3.2"/><circle cx="23" cy="24" r="3.2"/></svg>
+        </button>
+        <button class="tool more" type="button" id="shareButton" aria-label="Compartir el juego">
+          <svg viewBox="0 0 32 32" aria-hidden="true" class="dots"><circle cx="6" cy="16" r="2.3"/><circle cx="16" cy="16" r="2.3"/><circle cx="26" cy="16" r="2.3"/></svg>
         </button>
       </div>
-      <p class="record-hint" id="micHint">👆 Un toque para empezar · Máximo 15 s</p>
-      <div class="options">
-        <button id="cleanToggle" type="button" class="option-chip selected" aria-pressed="true">✨ Voz nítida <span id="cleanState">ON</span></button>
-        <button id="selfieToggle" type="button" class="option-chip" aria-pressed="false">📸 Grábate <span id="selfieState">OFF</span></button>
-      </div>
-      <p class="options-hint">✨ Reduce ruido de fondo · 📸 Selfie opcional para tu vídeo</p>
-      <div class="selfie-box" id="selfieBox" hidden>
-        <video id="selfiePreview" muted playsinline autoplay aria-label="Vista de la cámara delantera"></video>
-        <span class="selfie-sticker">📸 CAM MODE</span>
-      </div>
-      <div id="playPanel" class="play-panel" hidden>
-        <p class="play-title">🎧 ¡Escucha tu audio!</p>
-        <div class="play-grid">
-          <button id="playOriginal" class="play-btn original" type="button" aria-pressed="false"><span class="play-icon" id="iconOriginal">▶️</span><span><strong id="labelOriginal">ORIGINAL</strong><small>Tu voz real</small></span></button>
-          <button id="playReverse" class="play-btn reverse" type="button" aria-pressed="false"><span class="play-icon" id="iconReverse">⏪</span><span><strong id="labelReverse">REVERSA</strong><small>El mundo al revés</small></span></button>
-        </div>
-        <div class="share-zone">
-          <div class="share-header"><span class="share-burst">🚀</span><div><strong>¡Hazlo viral!</strong><small>Convierte tu voz en un vídeo vertical con emojis y sonido</small></div></div>
-          <div class="clip-choices" role="group" aria-label="Audio para el vídeo">
-            <button id="clipReverse" type="button" class="clip-choice active" aria-pressed="true">⏪ Vídeo reversa</button>
-            <button id="clipNormal" type="button" class="clip-choice" aria-pressed="false">🎙️ Vídeo original</button>
-          </div>
-          <div class="share-buttons">
-            <button type="button" id="shareTikTok" class="action-main">🎵 Compartir en TikTok</button>
-            <button type="button" id="makeVideo" class="action-alt">🎬 Crear / guardar vídeo</button>
-          </div>
-          <button type="button" id="saveAudio" class="share-link">⬇️ Descargar mi audio (WAV)</button>
-          <button type="button" id="shareChallenge" class="share-link">📲 Retar a mis amigos por WhatsApp y otras apps</button>
-          <p class="share-help" id="shareHelp">El botón TikTok abrirá el menú de compartir si tu móvil lo admite; si no, podrás guardar el vídeo y subirlo desde TikTok.</p>
-          <div class="share-result" id="shareResult" hidden>
-            <p id="shareResultText" aria-live="polite"></p>
-            <a href="https://www.tiktok.com/upload" target="_blank" rel="noopener noreferrer">🎵 Abrir TikTok para subir mi vídeo</a>
-          </div>
-        </div>
-      </div>
-      <div class="loading" id="loading" hidden role="status" aria-live="polite"><span class="spinner"></span><span id="loadingMessage">Preparando tu vídeo…</span></div>
-      <div class="error" id="errorMessage" role="alert" hidden></div>
-    </section>
+    </header>
 
-    <section class="steps" aria-label="Cómo jugar">
-      <div><span>🎙️</span><strong>1. Graba</strong><small>Di lo que quieras</small></div>
-      <span class="arrow">➜</span>
-      <div><span>⏪</span><strong>2. Reversa</strong><small>Escucha tu voz</small></div>
-      <span class="arrow">➜</span>
-      <div><span>🤣</span><strong>3. Comparte</strong><small>Reta a tus amigos</small></div>
-    </section>
-    <p class="privacy-promise">🔒 Sin cuentas. Tu voz se procesa en el dispositivo y no se sube a nuestros servidores.</p>
-  </main>
-  <footer><span>REWIND! ⚡ Hecho para divertirse</span><a href="./privacidad.html">Privacidad</a></footer>
-</div>
+    <div class="drawer" id="helpPanel" hidden>
+      <strong>🎮 ¡Así de fácil!</strong>
+      <p>🎙️ Graba tu voz · ▶️ Escúchala normal · ⏪ Escúchala al revés. Puedes volver a grabar cuando quieras.</p>
+      <a href="./privacidad.html">🔒 Privacidad</a>
+    </div>
+    <div class="drawer" id="filterPanel" hidden>
+      <strong>🎚️ Calidad del sonido</strong>
+      <label class="switch-row" for="filterToggle"><span>✨ Voz más limpia <small>Reduce ruido y eco; activado por defecto.</small></span><input type="checkbox" id="filterToggle" checked></label>
+      <p>El filtro mejora algunas grabaciones, pero no puede eliminar todo el ruido ni separar otras personas hablando.</p>
+    </div>
+
+    <main class="game" aria-label="Juego de voz al revés">
+      <button class="tile tile-record" id="recordButton" type="button" aria-label="Empezar a grabar" aria-pressed="false">
+        <span class="tile-graphic">
+          <svg viewBox="0 0 100 100" aria-hidden="true" id="recordIcon">
+            <rect x="38" y="15" width="24" height="46" rx="12" fill="currentColor" stroke="none"/>
+            <path d="M26 49a24 24 0 0 0 48 0M50 73v15M37 88h26" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="tile-text" id="recordLabel">Empezar a grabar</span>
+        <span class="tile-caption" id="recordCaption">🎙️ Toca para empezar</span>
+        <span class="time" id="recordTimer" hidden>00:00 / 00:15</span>
+      </button>
+
+      <button class="tile tile-original" id="originalButton" type="button" aria-label="Escuchar audio original" aria-pressed="false">
+        <span class="tile-graphic">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M33 20 Q33 16 39 19 L79 45 Q85 50 79 55 L39 81 Q33 85 33 78Z" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <span class="tile-text" id="originalLabel">Escuchar original</span>
+        <span class="tile-caption" id="originalCaption">▶️ Tu voz tal como la grabaste</span>
+      </button>
+
+      <button class="tile tile-reverse" id="reverseButton" type="button" aria-label="Escuchar audio en reversa" aria-pressed="false">
+        <span class="tile-graphic">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M67 20 Q67 16 61 19 L21 45 Q15 50 21 55 L61 81 Q67 85 67 78Z" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <span class="tile-text" id="reverseLabel">Escuchar reversa</span>
+        <span class="tile-caption" id="reverseCaption">⏪ ¡Dale la vuelta a tu voz!</span>
+      </button>
+    </main>
+
+    <p id="feedback" class="feedback" role="status" aria-live="polite">🔒 Sin registro · Audio procesado en tu móvil</p>
+    <footer>REWIND! 🌀 · <a href="./privacidad.html">Privacidad</a></footer>
+  </div>
 </body>
 </html>
