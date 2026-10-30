@@ -46,7 +46,7 @@ jobs:
           node <<'NODE'
           const fs=require('fs'),s=fs.readFileSync('/tmp/games.js','utf8');
           const games=JSON.parse(s.match(/const GAMES=(.*?);\n const META=/s)[1]);
-          const meta=JSON.parse(s.match(/const META=(.*?);\n const locale=/s)[1]);
+          const meta=JSON.parse(s.match(/const META=(.*?);\n const VISUALS=/s)[1]);
           const visuals=JSON.parse(s.match(/const VISUALS=(.*?);\n const VERBS=/s)[1]);
           const verbs=JSON.parse(s.match(/const VERBS=(.*?);\n const locale=/s)[1]);
           if(new Set(Object.values(visuals).map(v=>v.colors.join(','))).size!==15)throw Error('Game palettes are not unique');
