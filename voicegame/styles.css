@@ -166,3 +166,56 @@ body[data-game="knowme"] .party-board{background:linear-gradient(155deg,#fff,#ff
 body[data-game="story"] .party-board{background:linear-gradient(160deg,#fff,#ebfaed)}
 body[data-game="twotruths"] .party-board{background:linear-gradient(160deg,#fff,#eef3ff)}
 @media(max-width:540px){.party-board{padding:13px 12px 12px}.party-question{padding:15px 5px 9px;min-height:75px;font-size:clamp(20px,5.6vw,27px)}.party-timer>strong{font-size:33px}.party-player{font-size:11px}}
+
+/* UX repair: no full-screen turn modal. The handoff lives in normal document flow. */
+html{scroll-behavior:auto;overflow-anchor:none}
+.game-picker,.player-names,.mode-scene,.party-board,.round-top,.tiles,.handoff{overflow-anchor:none}
+.handoff{position:static;inset:auto;z-index:auto;background:transparent;display:block;padding:0;margin:4px 0 15px;min-height:0}
+.handoff[hidden]{display:none!important}
+.handoff-content{max-width:none;margin:0 auto;background:linear-gradient(145deg,#ffffff,#f4f0ff);border:2px solid var(--g-primary,#7252aa);border-radius:19px;padding:19px 18px 17px;box-shadow:0 8px 25px #00000012}
+.handoff-emoji{font-size:41px;line-height:1.2}
+.handoff h2{font-size:22px;line-height:1.25;margin:9px 0 6px;letter-spacing:-.03em}
+.handoff p{font-size:13px;line-height:1.5;max-width:450px;margin:8px auto;color:#555}
+.handoff button{background:var(--g-primary,#6ac2d3);padding:13px 16px;min-height:48px;max-width:440px;margin-top:8px;color:#fff}
+/* Party games have a short board and compact controls; the three huge microphone
+   panels are reserved for voice games, not question cards. */
+body.party-mode .mode-scene{min-height:118px;padding:10px 12px 12px;margin-bottom:9px;border-radius:17px}
+body.party-mode .scene-illustration{height:43px}
+body.party-mode .scene-emoji{font-size:45px}
+body.party-mode .scene-floater{font-size:20px}
+body.party-mode .scene-floater-left{left:28%;top:10%}
+body.party-mode .scene-floater-right{right:28%;bottom:0}
+body.party-mode .mode-scene h2{font-size:21px;margin:0 0 3px}
+body.party-mode .mode-scene p{font-size:11px;line-height:1.4;max-width:530px}
+body.party-mode .scene-steps{display:none}
+body.party-mode .party-board{min-height:157px;margin-bottom:9px}
+body.party-mode .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+body.party-mode .tiles.two-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+body.party-mode .tile{min-width:0;min-height:110px;padding:11px 6px;border-radius:15px}
+body.party-mode .tile-icon{width:41px;height:41px}
+body.party-mode .tile-label{font-size:clamp(13px,3.3vw,19px);font-weight:850;line-height:1.28;margin-top:6px;overflow-wrap:anywhere}
+body.party-mode .tile-detail{font-size:10px;line-height:1.35;margin-top:5px;max-width:100%;overflow-wrap:anywhere}
+body.party-mode .game-picker{margin-bottom:8px}
+body.party-mode .party-question{min-height:70px;padding-top:11px;padding-bottom:8px}
+body.party-mode .party-directions{max-width:510px;font-weight:600;color:#4a4650;font-size:12px}
+body.party-mode .feedback{margin-top:10px}
+body.party-mode .player-names{margin-bottom:9px}
+body.party-mode .mode-scene:after{width:85px;height:85px}
+@media(max-width:540px){
+ .handoff{margin:6px 0}
+ .handoff-content{padding:16px 13px;border-radius:15px}
+ .handoff-emoji{font-size:35px}
+ .handoff h2{font-size:20px}
+ body.party-mode .mode-scene{min-height:105px;padding:8px 9px 10px}
+ body.party-mode .scene-illustration{height:37px}
+ body.party-mode .scene-emoji{font-size:39px}
+ body.party-mode .scene-floater{font-size:16px}
+ body.party-mode .mode-scene h2{font-size:19px}
+ body.party-mode .party-board{padding:12px 10px;margin-bottom:8px;min-height:143px}
+ body.party-mode .party-question{min-height:62px;font-size:clamp(19px,5.4vw,24px);padding:10px 4px 7px}
+ body.party-mode .tile{min-height:103px}
+ body.party-mode .tile-icon{width:36px;height:36px}
+ body.party-mode .tile-label{font-size:clamp(13px,3.5vw,17px)}
+ body.party-mode .tile-detail{font-size:9px}
+}
+@media(max-width:360px){body.party-mode .tiles{gap:5px}body.party-mode .tile{padding:7px 4px}body.party-mode .tile-label{font-size:13px}body.party-mode .tile-detail{font-size:9px}}

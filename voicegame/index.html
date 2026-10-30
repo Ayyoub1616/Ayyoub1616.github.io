@@ -98,12 +98,20 @@
       <div class="prompt-copy"><span id="promptLabel">💡 IDEA PARA GRABAR</span><strong id="promptText">La pizza ha llegado</strong></div>
       <button id="shufflePrompt" class="prompt-shuffle" type="button" aria-label="Otra idea">🎲</button>
     </section>
-    <section class="round-top" aria-live="polite">
+    <section class="round-top" id="roundTop" aria-live="polite">
       <div class="stage-badge" id="stageBadge" data-i18n="badgeHost">🎙️ JUGADOR 1</div>
       <h1 id="stageTitle" data-i18n="titleHost">Graba una frase secreta</h1>
       <p id="stageHint" data-i18n="hintHost">El rival no debe escuchar tu grabación original. 🤫</p>
     </section>
-    <section class="tiles" aria-label="Botones del juego">
+    <section class="handoff" id="handoff" hidden aria-labelledby="handoffTitle">
+      <div class="handoff-content">
+        <div class="handoff-emoji">📱🤫</div>
+        <h2 id="handoffTitle" data-i18n="handoffTitle">¡Pasa el móvil al rival!</h2>
+        <p data-i18n="handoffDesc">Tu rival escuchará la voz al revés. No enseñes la original.</p>
+        <button id="rivalReadyButton" type="button" data-i18n="rivalReady">🙋 ¡Estoy listo!</button>
+      </div>
+    </section>
+    <section class="tiles" id="gameTiles" aria-label="Acciones del juego">
       <button class="tile tile-record" id="recordButton" type="button" aria-label="Empezar grabación">
         <span class="tile-icon" id="recordIcon"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="38" y="15" width="24" height="46" rx="12" fill="currentColor"/><path d="M26 49a24 24 0 0 0 48 0M50 73v15M37 88h26" stroke="currentColor" fill="none" stroke-width="7" stroke-linecap="round"/></svg></span>
         <span class="tile-label" id="recordLabel" data-i18n="recordSecret">Grabar secreto</span>
@@ -153,13 +161,6 @@
   </main>
   <footer>REWIND! 🌀 · <a href="./privacidad.html" data-i18n="privacy">Privacidad</a></footer>
 </div>
-<div class="handoff" id="handoff" hidden role="dialog" aria-modal="true" aria-labelledby="handoffTitle">
-  <div class="handoff-content">
-    <div class="handoff-emoji">📱🤫</div>
-    <h2 id="handoffTitle" data-i18n="handoffTitle">¡Pasa el móvil al rival!</h2>
-    <p data-i18n="handoffDesc">Que no vea ni escuche el audio original. Su misión es escuchar el sonido al revés e intentar imitarlo.</p>
-    <button id="rivalReadyButton" type="button" data-i18n="rivalReady">🙋 ¡Soy el rival, estoy listo!</button>
-  </div>
-</div>
+
 </body>
 </html>

@@ -307,14 +307,14 @@
     $('guessText').textContent=guess?t('guessed',{value:guess}):'';
     render();say('revealDone');
   }
-  function resetRound(){
+  function resetRound(renderNow=true){
     stopPartyTimer();
     stopPlaying();freeRecording(host);freeRecording(rival);
     for(const rec of chainRecordings)if(rec!==host&&rec!==rival)freeRecording(rec);
     host=null;rival=null;chainRecordings=[];chainIndex=1;winner='';pcmChunks=[];encodedChunks=[];
     $('secretInput').value='';$('guessInput').value='';
     stage='host';recording=false;processing=false;pending=false;
-    render();say('roundReset');
+    if(renderNow){render();say('roundReset');}
   }
   function populateGames(){
     const select=$('gameSelect');select.replaceChildren();
@@ -340,13 +340,14 @@
   function changeGame(next){
     if(recording||processing||pending){$('gameSelect').value=modeId;return;}
     if(next===modeId)return;
-    if((host||rival)&&!window.confirm(G.msg('resetConfirm'))){$('gameSelect').value=modeId;return;}
-    resetRound();
+    // Mode selection must not create native popups or interrupt the viewport.
+    resetRound(false);
     modeId=next;promptIndex=0;
     if(chainMode()&&chainPlayers<3)chainPlayers=3;
     resetParty();
-    if(chainMode()||partyMode())$('playerNamesPanel').open=true;
+    $('playerNamesPanel').open=false;
     try{localStorage.setItem('rewind-game-mode',modeId)}catch(_){}
+    notify(G.guide(modeId));notice=null;
     render();
   }
   function nextInChain(){
@@ -442,7 +443,7 @@
     $('sceneLeft').textContent=visual.left;
     $('sceneRight').textContent=visual.right;
     $('sceneTitle').textContent=G.title(modeId);
-    $('sceneSubtitle').textContent=G.description(modeId);
+    $('sceneSubtitle').textContent=G.guide(modeId);
     ['stepOne','stepTwo','stepThree'].forEach((id,index)=>{
       const symbol=['🎙️','⏪','🤯'][index];
       const action=visual.steps[index];
@@ -512,7 +513,7 @@
   function nextPartyTurn(){
     if(!partyMode())return;
     stopPartyTimer();partyIndex=(partyIndex+1)%participantCount();
-    partyPromptIndex=(partyPromptIndex+1)%4;partyHidden=false;partyReveal=false;partyRemaining=mode().seconds||0;
+    if(modeId!=='story')partyPromptIndex=(partyPromptIndex+1)%4;partyHidden=false;partyReveal=false;partyRemaining=mode().seconds||0;
     render();notify(G.msg('turnFor',{value:participantName(partyIndex)}));
   }
   function startPartyTimer(){
@@ -549,6 +550,11 @@
     $('handoff').hidden=true;$('secretPanel').hidden=true;$('guessPanel').hidden=true;
     $('chainNextPanel').hidden=true;$('revealPanel').hidden=true;
     $('partyBoard').hidden=false;$('promptBox').hidden=true;
+    $('gameTiles').hidden=false;
+    document.body.classList.add('party-mode');
+    $('gameTiles').classList.toggle('two-actions',mode().variant==='talk');
+    $('originalButton').hidden=mode().variant==='talk';
+    $('roundTop').hidden=true;
     $('chainControls').hidden=mode().group!=='groups';
     $('chainPlayersLabel').textContent=G.msg('players');
     $('chainPlayers').value=String(chainPlayers);$('chainPlayers').disabled=false;
@@ -559,11 +565,11 @@
     $('playerNamesPanel').hidden=false;renderPlayerNames();
     const name=participantName(partyIndex);
     $('stageBadge').textContent=G.msg('currentPlayer',{value:name});
-    $('stageTitle').textContent=G.title(modeId);$('stageHint').textContent=G.description(modeId);
-    $('partyPlayer').textContent='🎯 '+G.msg('turnFor',{value:name});
+    $('stageTitle').textContent=G.title(modeId);$('stageHint').textContent=G.guide(modeId);
+    $('partyPlayer').textContent='🎯 '+G.msg('turnFor',{value:name})+(modeId==='truthdare'?' · '+G.msg(partyDare?'dare':'truth'):'');
     $('partyQuestion').textContent=partyHidden?G.msg('hidden'):currentPartyPrompt();
     $('partyQuestion').classList.toggle('is-hidden',partyHidden);
-    $('partyDirections').textContent=G.msg(mode().variant==='timer'?'timerHelp':mode().variant==='talk'?'voteHelp':'partyHow');
+    $('partyDirections').textContent=G.guide(modeId);
     $('partyAnswer').hidden=!(mode().variant==='reveal'&&partyReveal);
     $('partyAnswer').textContent=mode().variant==='reveal'?G.msg('answerLabel',{value:G.answer(partyPromptIndex)}):'';
     $('partyTimerPanel').hidden=mode().variant!=='timer';
@@ -578,7 +584,7 @@
     }
     $('scenePlayers').textContent='👥 '+participantCount();
     const help=$('helpPanel');help.querySelector('strong').textContent=G.msg('how');
-    [...help.querySelectorAll('p')].forEach((p,i)=>p.textContent=G.msg(['partyHelp','partyHow','voteHelp','timerHelp'][i]));
+    [...help.querySelectorAll('p')].forEach((p,i)=>p.textContent=i===0?G.guide(modeId):i===1?G.msg('partyHow'):'');
     const variant=mode().variant;
     const green=variant==='timer'?(partyTimerId?'timerPause':partyRemaining<=0?'timerRestart':'timerStart'):
       variant==='truthdare'?(partyDare?'truth':'dare'):
@@ -595,6 +601,11 @@
     renderGameIdentity();
     if(partyMode()){renderParty();return;}
     $('partyBoard').hidden=true;
+    $('originalButton').hidden=false;
+    $('gameTiles').classList.remove('two-actions');
+    document.body.classList.remove('party-mode');
+    $('roundTop').hidden=false;
+    $('gameTiles').hidden=stage==='handoff';
     const hostTurn=stage==='host',rivalTurn=stage==='rival',reveal=stage==='reveal';
     $('secretPanel').hidden=!hostTurn || duelMode();
     $('guessPanel').hidden=!(rivalTurn&&!!rival&&(!chainMode()||chainIndex>=chainPlayers-1));
@@ -612,6 +623,7 @@
     $('winnerResult').textContent=winner?(winner==='tie'?G.msg('winnerTie'):G.msg('resultNamed',{value:participantName(winner==='one'?0:1)})):'';
     $('revealPanel').hidden=!reveal;
     $('handoff').hidden=stage!=='handoff';
+    if(stage==='handoff')$('gameTiles').hidden=true;
     const personIndex=activePerson();
     $('stageBadge').textContent=chainMode()&&!reveal
       ?(hasName(personIndex)?participantName(personIndex)+' · ':'👥 ')+(personIndex+1)+' / '+chainPlayers
@@ -732,7 +744,8 @@
     if(notice)notify(t(notice.key,notice.vars),notice.error);
   });
   populateGames();
-  if(chainMode()||partyMode())$('playerNamesPanel').open=true;
+  // Optional names remain in a compact, collapsible section.
+  $('playerNamesPanel').open=false;
   resetParty();
   render();
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
