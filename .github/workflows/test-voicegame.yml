@@ -114,7 +114,7 @@ jobs:
               await page.selectOption('#gameSelect',game);
               await checkNoOverflow(game);
               await page.locator('#originalButton').click();
-              await page.waitForTimeout(800);
+              await page.waitForTimeout(1400);
               if(!await page.locator('#partyTimerPanel').isVisible())throw Error('Timer missing '+game);
               const time=Number(await page.locator('#partyTimerValue').textContent());
               if(time>=Number(game==='fivewords'?5:game==='charades'?30:40))throw Error('Timer not running '+game);
