@@ -205,6 +205,7 @@
       clockId=setInterval(()=>{
         if(!recording)return;
         $('recordDetail').textContent='🔴 '+timerLabel((performance.now()-begin)/1000)+' / '+timerLabel(timeLimit());
+        if(modeId==='speed')updateSpeedClock();
         if((performance.now()-begin)/1000>=timeLimit())endRecording();
       },110);
     }catch(err){
@@ -378,7 +379,74 @@
     item.classList.toggle('is-recording',which==='red'&&recording);
     item.disabled=processing||pending;
   }
+  function renderGameIdentity(){
+    const visual=G.visual(modeId);
+    // Every game has its own colors, icons and instructions while keeping
+    // the same three familiar record/listen/reverse controls.
+    document.body.dataset.game=modeId;
+    const colors=visual.colors;
+    for(const [name,value] of [['--g-primary',colors[0]],['--g-record',colors[1]],['--g-play',colors[2]],['--g-reverse',colors[3]],['--g-surface',colors[4]]]){
+      document.body.style.setProperty(name,value);
+    }
+    $('sceneCategory').textContent=G.msg(mode().group);
+    $('scenePlayers').textContent=chainMode()?'👥 '+chainPlayers:'👥 2';
+    $('sceneEmoji').textContent=visual.emoji;
+    $('sceneLeft').textContent=visual.left;
+    $('sceneRight').textContent=visual.right;
+    $('sceneTitle').textContent=G.title(modeId);
+    $('sceneSubtitle').textContent=G.description(modeId);
+    ['stepOne','stepTwo','stepThree'].forEach((id,index)=>{
+      const symbol=['🎙️','⏪','🤯'][index];
+      const action=visual.steps[index];
+      const emoji=action==='record'?'🎙️':action==='reverse'?'⏪':action==='guess'?'🤯':
+        action==='pass'?'📱':action==='listen'?'🎧':action==='vote'?'🏆':
+        action==='secret'?'🤫':action==='imitate'?'🎭':action==='laugh'?'🤣':
+        action==='act'?'🎬':action==='whisper'?'🤫':action==='beat'?'🥁':
+        action==='fast'?'⚡':'🎉';
+      $(id).textContent=(emoji||symbol)+' '+G.verb(action);
+    });
+    $('chainProgress').hidden=!chainMode();
+    if(chainMode()){
+      const bar=$('chainProgress');
+      bar.replaceChildren();
+      for(let i=0;i<chainPlayers;i++){
+        const badge=document.createElement('div');
+        badge.className='chain-player';
+        if(chainRecordings[i])badge.classList.add('is-completed');
+        const current=stage==='host'?0:stage==='rival'||stage==='handoff'?chainIndex:-1;
+        if(i===current)badge.classList.add('is-current');
+        const icon=document.createElement('span');icon.className='chain-player-icon';
+        icon.textContent=chainRecordings[i]?'✅':i===current?'🎙️':'👤';
+        const label=document.createElement('span');label.textContent=String(i+1);
+        badge.append(icon,label);
+        bar.append(badge);
+      }
+    }
+    $('duelArena').hidden=!duelMode();
+    if(duelMode()){
+      for(const [id,isActive,done] of [
+        ['duelPersonOne',stage==='host',!!host],
+        ['duelPersonTwo',stage==='rival'||stage==='handoff',!!rival]
+      ]){
+        $(id).classList.toggle('is-current',isActive);
+        $(id).classList.toggle('is-done',done);
+      }
+      $('duelNameOne').textContent=G.msg('chainVoice',{value:1});
+      $('duelNameTwo').textContent=G.msg('chainVoice',{value:2});
+    }
+    $('speedPanel').hidden=modeId!=='speed';
+    if(modeId==='speed')updateSpeedClock();
+  }
+  function updateSpeedClock(){
+    const maximum=timeLimit();
+    const elapsed=recording?Math.min(maximum,(performance.now()-begin)/1000):0;
+    const remaining=Math.max(0,maximum-elapsed);
+    $('speedTitle').textContent='⚡ '+maximum+'s';
+    $('speedRemaining').textContent=String(Math.ceil(remaining)).padStart(2,'0');
+    $('speedFill').style.width=(remaining/maximum*100).toFixed(1)+'%';
+  }
   function render(){
+    renderGameIdentity();
     const hostTurn=stage==='host',rivalTurn=stage==='rival',reveal=stage==='reveal';
     $('secretPanel').hidden=!hostTurn || duelMode();
     $('guessPanel').hidden=!(rivalTurn&&!!rival&&(!chainMode()||chainIndex>=chainPlayers-1));
