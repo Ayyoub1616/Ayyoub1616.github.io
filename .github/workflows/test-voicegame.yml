@@ -25,6 +25,7 @@ jobs:
               curl -fsSL --max-time 15 "$BASE/games.js" -o /tmp/games.js &&
               grep -q '"id":"chain"' /tmp/games.js &&
               grep -q '"id":"duel"' /tmp/games.js &&
+              grep -q 'const VISUALS=' /tmp/games.js &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/app.js &&
               grep -q 'function nextInChain' /tmp/app.js &&
               grep -q 'linkedMode' /tmp/app.js &&
@@ -46,6 +47,10 @@ jobs:
           const fs=require('fs'),s=fs.readFileSync('/tmp/games.js','utf8');
           const games=JSON.parse(s.match(/const GAMES=(.*?);\n const META=/s)[1]);
           const meta=JSON.parse(s.match(/const META=(.*?);\n const locale=/s)[1]);
+          const visuals=JSON.parse(s.match(/const VISUALS=(.*?);\n const VERBS=/s)[1]);
+          const verbs=JSON.parse(s.match(/const VERBS=(.*?);\n const locale=/s)[1]);
+          if(new Set(Object.values(visuals).map(v=>v.colors.join(','))).size!==15)throw Error('Game palettes are not unique');
+          for(const game of games)for(const lang of ['es','en','fr','ar','pt'])for(const word of visuals[game.id].steps)if(!verbs[lang][word])throw Error('Missing themed step translation '+game.id+'/'+lang);
           if(games.length!==15)throw Error('Expected 15 games, got '+games.length);
           for(const g of games)for(const l of ['es','en','fr','ar','pt']){
             if(g[l]?.length!==3||g[l][2].length<3)throw Error('Missing '+g.id+' '+l);
@@ -119,3 +124,42 @@ jobs:
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
           node /tmp/rewind-e2e/test.cjs
+
+      - name: Test 15 different visual game themes
+        shell: bash
+        run: |
+          cat > /tmp/rewind-e2e/themes.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
+            const page=await browser.newPage({viewport:{width:390,height:844},locale:'es-ES'});
+            const errors=[];page.on('pageerror',e=>errors.push(e.message));
+            await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
+            const games=['reverse','chain','duel','couples','compliments','emoji','animals','accents','laugh','twister','whisper','speed','sound','beat','robot'];
+            const themes=new Set();
+            for(const game of games){
+              await page.selectOption('#gameSelect',game);
+              if(await page.locator('body').getAttribute('data-game')!==game)throw Error('Wrong active game '+game);
+              const color=await page.locator('#recordButton').evaluate(el=>getComputedStyle(el).backgroundColor);
+              if(themes.has(color))throw Error('Duplicate tile color for '+game);
+              themes.add(color);
+              const emoji=await page.locator('#sceneEmoji').textContent();
+              const title=await page.locator('#sceneTitle').textContent();
+              if(!emoji?.trim()||!title?.trim())throw Error('Missing game identity '+game);
+              const steps=await page.locator('#sceneSteps>span:not(.step-arrow)').allTextContents();
+              if(steps.length!==3||steps.some(x=>!x.trim()))throw Error('Missing game-specific instructions '+game);
+              if(game==='chain'&&!await page.locator('#chainProgress').isVisible())throw Error('Chain turn display hidden');
+              if(game==='duel'&&!await page.locator('#duelArena').isVisible())throw Error('Duel arena hidden');
+              if(game==='speed'&&!await page.locator('#speedPanel').isVisible())throw Error('Speed countdown hidden');
+              const noOverflow=await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2);
+              if(!noOverflow)throw Error('Horizontal overflow on mobile in '+game);
+            }
+            await page.selectOption('#languageSelect','ar');
+            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic RTL missing');
+            if(!((await page.locator('#stepOne').textContent()).trim().length>2))throw Error('Localized steps missing');
+            if(errors.length)throw Error('Browser errors: '+errors.join('; '));
+            console.log('PASS: 15 unique layouts/colors, chain, duel, speed, Arabic and mobile viewport');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          node /tmp/rewind-e2e/themes.cjs
