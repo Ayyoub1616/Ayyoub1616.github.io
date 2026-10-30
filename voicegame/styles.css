@@ -52,3 +52,69 @@
 [dir="rtl"] .game-description,[dir="rtl"] .prompt-box,[dir="rtl"] .picker-row{text-align:right}
 [dir="rtl"] .prompt-copy{direction:rtl}
 @media(max-width:540px){.game-picker{padding:12px;margin-top:0}.picker-row{grid-template-columns:1fr;gap:7px}#gameSelect{font-size:14px}.prompt-box{padding:9px 11px}.prompt-copy strong{font-size:13px}.prompt-shuffle{min-width:40px;min-height:40px}.round-top{padding-top:2px}.tile{min-height:clamp(150px,20dvh,230px)}}
+
+/* Distinct mini-game identities. Controls stay the same; each arena looks different. */
+body{background:var(--g-surface,#ededed);transition:background-color .25s ease}
+.game-picker{border-color:color-mix(in srgb,var(--g-primary,#9275e1) 32%,white);box-shadow:0 5px 22px #0000000b}
+#gameSelect{border-color:color-mix(in srgb,var(--g-primary,#9275e1) 43%,#ddd);background:#fff}
+#gameSelect:focus-visible{outline-color:var(--g-primary,#563e8c)}
+.mode-scene{position:relative;overflow:hidden;text-align:center;min-height:188px;margin:0 0 12px;padding:14px 18px 15px;border-radius:22px;background:linear-gradient(127deg,var(--g-primary,#6e50a8),color-mix(in srgb,var(--g-primary,#6e50a8) 75%,#101b42));box-shadow:0 12px 30px color-mix(in srgb,var(--g-primary,#6e50a8) 25%,transparent);color:white;isolation:isolate}
+.mode-scene:before,.mode-scene:after{content:"";position:absolute;pointer-events:none;border-radius:50%;background:#ffffff14;z-index:-1}
+.mode-scene:before{width:160px;height:160px;right:-42px;top:-76px}.mode-scene:after{width:100px;height:100px;left:-44px;bottom:-62px}
+.scene-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.scene-category,.scene-players{background:#ffffff26;border:1px solid #ffffff37;border-radius:100px;font-size:10px;font-weight:850;padding:5px 10px;line-height:1.5}
+.scene-illustration{position:relative;height:75px;display:flex;justify-content:center;align-items:center}
+.scene-emoji{display:block;font-size:69px;line-height:1;filter:drop-shadow(0 9px 8px #13142d33);animation:scene-bob 2.6s ease-in-out infinite alternate}
+.scene-floater{position:absolute;font-size:29px;line-height:1;filter:drop-shadow(0 8px 12px #0003)}
+.scene-floater-left{left:24%;top:18%;animation:scene-float-a 3.6s ease-in-out infinite alternate}
+.scene-floater-right{right:24%;bottom:8%;animation:scene-float-b 3.1s ease-in-out infinite alternate}
+.mode-scene h2{font-size:clamp(20px,4.4vw,27px);line-height:1.25;font-weight:900;letter-spacing:-.025em;margin:2px 0 4px}
+.mode-scene p{margin:0 auto;font-size:12px;line-height:1.55;opacity:.93;max-width:590px}
+.scene-steps{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:10px}
+.scene-steps>span:not(.step-arrow){background:#ffffff1d;border:1px solid #ffffff28;padding:6px 9px;border-radius:9px;font-size:11px;font-weight:800}
+.scene-steps .step-arrow{font-size:21px;opacity:.7;line-height:1}
+.tile-record{background:var(--g-record,#dc4e4e)}
+.tile-original{background:var(--g-play,#abd66e)}
+.tile-reverse{background:var(--g-reverse,#6cc1d6)}
+.tile.is-recording{filter:brightness(.82)}
+.stage-badge{background:var(--g-surface,#f0eaff);color:var(--g-primary,#693ba1);border:1px solid color-mix(in srgb,var(--g-primary,#693ba1) 23%,transparent)}
+.prompt-box{background:color-mix(in srgb,var(--g-surface,#fff9df) 82%,white);border:1px solid color-mix(in srgb,var(--g-primary,#9975bb) 35%,#fff)}
+.prompt-copy span{color:var(--g-primary,#885d9d)}.prompt-shuffle{background:var(--g-primary,#b298ed);color:#fff}
+.next-button{background:var(--g-primary,#e45b69)}
+.aux-panel{border:1px solid color-mix(in srgb,var(--g-primary,#9c70c8) 12%,transparent)}
+.mode-specials:empty{display:none}
+.chain-progress{display:flex;gap:6px;justify-content:center;align-items:center;margin:0 0 12px;padding:8px 12px;border-radius:14px;background:#fff;border:1px solid #e0d9f1}
+.chain-player{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;flex:1;max-width:105px;padding:7px 3px;border-radius:11px;background:#f3f1f8;color:#6e6484;font-size:10px;font-weight:850}
+.chain-player-icon{font-size:22px;line-height:1}.chain-player.is-current{background:var(--g-primary,#7752af);color:#fff;box-shadow:0 5px 18px #0002;transform:translateY(-2px)}
+.chain-player.is-completed{background:#ddf7e8;color:#267c54}
+.duel-arena{display:grid;grid-template-columns:1fr 52px 1fr;gap:6px;align-items:center;margin:0 0 12px;padding:10px;border-radius:16px;background:#201535;color:#fff;box-shadow:0 7px 20px #0002}
+.duel-person{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 4px;border-radius:12px;background:#ffffff1b;opacity:.69}
+.duel-person>span{font-size:26px}.duel-person strong{font-size:12px}
+.duel-person.is-current{background:var(--g-play,#ffae56);color:#222;opacity:1;transform:scale(1.015)}
+.duel-person.is-done{background:#ffffff3c;opacity:1}
+.duel-versus{font-weight:1000;font-size:21px;color:#ffd86e;text-align:center;font-style:italic}
+.speed-panel{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:15px;margin:0 0 12px;background:#2c2129;color:#fff}
+.speed-panel>span{font-size:14px;font-weight:950;white-space:nowrap}.speed-panel>strong{font-size:22px;min-width:30px;font-variant-numeric:tabular-nums;text-align:right}
+.speed-track{height:12px;border-radius:99px;background:#ffffff35;flex:1;overflow:hidden}.speed-track span{display:block;width:100%;height:100%;border-radius:99px;background:linear-gradient(90deg,#ffb344,#ff658d);transition:width .12s linear}
+body[data-game="couples"] .scene-emoji,body[data-game="compliments"] .scene-emoji,body[data-game="laugh"] .scene-emoji{animation:scene-heart 1.5s ease-in-out infinite alternate}
+body[data-game="robot"] .mode-scene:before,body[data-game="sound"] .mode-scene:before{background:repeating-radial-gradient(circle,#ffffff25 0 4px,transparent 5px 25px)}
+body[data-game="beat"] .mode-scene:after{border-radius:5px;background:repeating-linear-gradient(90deg,#ffffff22 0 10px,transparent 10px 22px)}
+body[data-game="speed"] .mode-scene{background:linear-gradient(120deg,#da4f27,var(--g-primary));box-shadow:0 12px 28px #c74d3555}
+body[data-game="whisper"] .mode-scene{background:linear-gradient(125deg,#27304f,var(--g-primary));}
+body[data-game="emoji"] .mode-scene:after,body[data-game="animals"] .mode-scene:after{width:140px;height:140px;left:-34px;bottom:-70px;transform:rotate(-10deg)}
+@keyframes scene-bob{from{transform:translateY(4px) rotate(-7deg)}to{transform:translateY(-6px) rotate(7deg)}}
+@keyframes scene-float-a{from{transform:translate(0,5px) rotate(-12deg)}to{transform:translate(-7px,-5px) rotate(10deg)}}
+@keyframes scene-float-b{from{transform:translate(0,-4px) rotate(12deg)}to{transform:translate(8px,4px) rotate(-10deg)}}
+@keyframes scene-heart{from{transform:scale(.93) rotate(-7deg)}to{transform:scale(1.1) rotate(7deg)}}
+@media(max-width:540px){
+ .mode-scene{min-height:171px;padding:11px 10px 13px;border-radius:19px;margin-bottom:8px}
+ .scene-illustration{height:60px}.scene-emoji{font-size:55px}.scene-floater{font-size:24px}
+ .scene-floater-left{left:21%}.scene-floater-right{right:21%}
+ .mode-scene h2{font-size:21px}.mode-scene p{font-size:11px;max-width:310px}
+ .scene-steps{margin-top:8px}.scene-steps>span:not(.step-arrow){font-size:10px;padding:5px 6px}
+ .scene-steps .step-arrow{font-size:15px}
+ .round-top{padding:3px 6px 10px}.round-top h1{font-size:21px}.round-top p{font-size:12px}
+ .chain-progress,.duel-arena,.speed-panel{margin-bottom:9px}
+ .chain-player-icon{font-size:20px}.chain-player{font-size:9px}
+}
+@media(prefers-reduced-motion:reduce){.scene-emoji,.scene-floater{animation:none!important}}
