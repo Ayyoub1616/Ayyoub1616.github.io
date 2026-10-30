@@ -30,7 +30,7 @@ jobs:
               curl -fsSL --max-time 15 "$URL/styles.css" -o /tmp/styles.css &&
               grep -q 'body.party-mode .tiles' /tmp/styles.css &&
               curl -fsSL --max-time 15 "$URL/sw.js" -o /tmp/sw.js &&
-              grep -q 'rewind-ux-clear-v13' /tmp/sw.js; then
+              grep -q 'rewind-ux-clear-v14' /tmp/sw.js; then
               node --check /tmp/games.js
               node --check /tmp/app.js
               node --check /tmp/sw.js
