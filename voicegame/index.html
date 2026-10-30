@@ -13,6 +13,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="stylesheet" href="./styles.css">
 <script src="./i18n.js" defer></script>
+<script src="./games.js" defer></script>
 <script src="./app.js" defer></script>
 </head>
 <body>
@@ -39,6 +40,21 @@
     <p data-i18n="qualityDesc">Se utiliza la cancelación de ruido del micrófono y un filtro suave. No puede eliminar todos los sonidos.</p>
   </div>
   <main>
+    <section class="game-picker" aria-label="Elegir minijuego">
+      <div class="picker-row">
+        <label for="gameSelect" id="gameSelectLabel">🎮 Escoge un juego</label>
+        <select id="gameSelect" aria-label="Juego"></select>
+      </div>
+      <p id="gameDescription" class="game-description">Escucha al revés, imita y descubre qué se dijo.</p>
+      <div id="chainControls" class="chain-controls" hidden>
+        <label for="chainPlayers" id="chainPlayersLabel">👥 Jugadores</label>
+        <select id="chainPlayers"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select>
+      </div>
+    </section>
+    <section class="prompt-box" id="promptBox">
+      <div class="prompt-copy"><span id="promptLabel">💡 IDEA PARA GRABAR</span><strong id="promptText">La pizza ha llegado</strong></div>
+      <button id="shufflePrompt" class="prompt-shuffle" type="button" aria-label="Otra idea">🎲</button>
+    </section>
     <section class="round-top" aria-live="polite">
       <div class="stage-badge" id="stageBadge" data-i18n="badgeHost">🎙️ JUGADOR 1</div>
       <h1 id="stageTitle" data-i18n="titleHost">Graba una frase secreta</h1>
@@ -65,6 +81,9 @@
       <label for="secretInput"><span data-i18n="secretLabel">🤫 Frase secreta escrita</span> <span data-i18n="optional">(opcional)</span></label>
       <input id="secretInput" type="text" maxlength="140" data-i18n-placeholder="secretPlaceholder" placeholder="Puedes escribirla para revelarla al final" autocomplete="off" autocapitalize="sentences">
     </section>
+    <section id="chainNextPanel" class="aux-panel" hidden>
+      <button id="nextChainButton" type="button" class="next-button">➡️ Pasar al siguiente</button>
+    </section>
     <section id="guessPanel" class="aux-panel guess-panel" hidden>
       <label for="guessInput" data-i18n="guessLabel">🤔 ¿Qué crees que dijo el jugador 1?</label>
       <input id="guessInput" type="text" maxlength="140" data-i18n-placeholder="guessPlaceholder" placeholder="Escribe tu respuesta (opcional)" autocomplete="off">
@@ -75,6 +94,16 @@
       <strong data-i18n="answerTitle">¡Misterio resuelto!</strong>
       <p id="answerText" data-i18n="answerDefault">Escucha la voz original y descubre lo que dijo.</p>
       <p id="guessText" class="guess-answer"></p>
+      <div id="chainHistory" class="chain-history" hidden></div>
+      <div id="winnerPanel" class="winner-panel" hidden>
+        <strong id="voteTitle">🏆 ¿Quién ganó?</strong>
+        <div class="winner-actions">
+          <button type="button" data-winner="one" id="winnerOne">🎙️ Jugador 1</button>
+          <button type="button" data-winner="two" id="winnerTwo">🎧 Jugador 2</button>
+          <button type="button" data-winner="tie" id="winnerTie">🤝 Empate</button>
+        </div>
+        <p id="winnerResult" aria-live="polite"></p>
+      </div>
       <button class="next-button" type="button" id="newRoundButton" data-i18n="newRoundBtn">🔄 Nueva ronda</button>
     </section>
     <p class="feedback" id="feedback" data-i18n="feedbackInit" role="status" aria-live="polite">🔒 Juego por turnos en el mismo móvil · Sin cuentas</p>

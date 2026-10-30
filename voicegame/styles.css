@@ -23,3 +23,32 @@
 [dir="rtl"] .toolbar-right{direction:rtl}
 [dir="rtl"] .switch-row{flex-direction:row}
 @media(max-width:540px){.lang-label{gap:1px;padding:4px 5px;font-size:15px}.lang-label select{font-size:10px;max-width:67px}.toolbar-right{gap:3px}.share-button{gap:2px;padding:6px 6px}.share-button svg{width:15px;height:15px}.tile-label{overflow-wrap:break-word;max-width:100%;padding-inline:4px}}
+
+/* Viral mini-game selector: one compact control, the rest of the screen stays familiar. */
+.game-picker{background:#fff;border:1px solid #ddd;border-radius:16px;padding:13px 15px 11px;margin:4px 0 12px;box-shadow:0 4px 18px #00000009}
+.picker-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px}
+.picker-row label{font-size:13px;font-weight:850;white-space:nowrap}
+#gameSelect{width:100%;min-width:0;max-width:100%;padding:12px 34px 12px 12px;border-radius:11px;border:1.5px solid #c9c9c9;background:#f7f7f7;color:#141414;font-size:15px;font-weight:750;cursor:pointer;text-overflow:ellipsis}
+.game-description{font-size:12px;line-height:1.55;color:#565656;margin:9px 2px 0}
+.chain-controls{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:12px 0 2px;padding-top:10px;border-top:1px solid #eee;font-size:13px;font-weight:750}
+.chain-controls select{min-width:85px;height:39px;border:1px solid #d0d0d0;border-radius:8px;background:#f7f7f7;padding:5px 10px;color:#171717}
+.prompt-box{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:14px;background:#fff9df;border:1px solid #f2da88;padding:10px 13px;margin:0 0 10px}
+.prompt-copy{min-width:0;display:flex;flex-direction:column;gap:3px}
+.prompt-copy span{color:#92731e;font-size:10px;font-weight:900;letter-spacing:.06em}
+.prompt-copy strong{color:#31302c;font-size:14px;font-weight:850;line-height:1.5;overflow-wrap:anywhere}
+.prompt-shuffle{border:0;border-radius:11px;background:#ffdd86;min-width:43px;min-height:43px;font-size:23px;cursor:pointer;transition:transform .18s}
+.prompt-shuffle:hover{transform:rotate(28deg)}
+.chain-history{text-align:start;margin:15px 0;display:grid;gap:8px}
+.chain-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:space-between;background:#f2f5f7;border-radius:10px;padding:9px;font-size:12px}
+.chain-row-label{font-weight:850}
+.chain-row-actions{display:flex;gap:6px}
+.chain-row-actions button{border:1px solid #ccd3db;border-radius:9px;padding:9px 11px;background:#fff;cursor:pointer;font-size:12px}
+.winner-panel{background:#fff8e5;border:1px solid #eac877;border-radius:12px;padding:13px;margin-top:17px;text-align:center}
+.winner-panel strong{font-size:16px}
+.winner-actions{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.winner-actions button{background:#fff;color:#2a2a2a;border:1px solid #d8c399;border-radius:10px;font-size:12px;font-weight:750;padding:11px 9px;cursor:pointer}
+.winner-actions button:hover{background:#fff1bd}
+#winnerResult{font-size:15px;font-weight:850;margin:12px 0 0}
+[dir="rtl"] .game-description,[dir="rtl"] .prompt-box,[dir="rtl"] .picker-row{text-align:right}
+[dir="rtl"] .prompt-copy{direction:rtl}
+@media(max-width:540px){.game-picker{padding:12px;margin-top:0}.picker-row{grid-template-columns:1fr;gap:7px}#gameSelect{font-size:14px}.prompt-box{padding:9px 11px}.prompt-copy strong{font-size:13px}.prompt-shuffle{min-width:40px;min-height:40px}.round-top{padding-top:2px}.tile{min-height:clamp(150px,20dvh,230px)}}

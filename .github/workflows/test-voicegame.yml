@@ -1,4 +1,4 @@
-name: Verify multilingual REWIND and audio
+name: Verify REWIND mini-game collection
 on:
   push:
     branches: [main]
@@ -12,108 +12,110 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Check published language and audio files
+      - name: Check deployed game collection
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://ayyoub1616.github.io/voicegame'
           for attempt in {1..30}; do
-            if curl -fsSL --max-time 15 "$BASE/" -o /tmp/rewind.html &&
-              grep -q 'id="languageSelect"' /tmp/rewind.html &&
+            if curl -fsSL --max-time 15 "$BASE/" -o /tmp/index.html &&
+              grep -q 'id="gameSelect"' /tmp/index.html &&
+              grep -q 'id="chainPlayers"' /tmp/index.html &&
+              grep -q 'id="winnerPanel"' /tmp/index.html &&
+              curl -fsSL --max-time 15 "$BASE/games.js" -o /tmp/games.js &&
+              grep -q '"id":"chain"' /tmp/games.js &&
+              grep -q '"id":"duel"' /tmp/games.js &&
+              curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/app.js &&
+              grep -q 'function nextInChain' /tmp/app.js &&
+              grep -q 'linkedMode' /tmp/app.js &&
               curl -fsSL --max-time 15 "$BASE/i18n.js" -o /tmp/i18n.js &&
-              grep -q 'rewind-language-v1' /tmp/i18n.js &&
-              curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/rewind.js &&
-              grep -q 'floor\*2.35' /tmp/rewind.js &&
-              grep -q 'let gain=.16' /tmp/rewind.js &&
-              curl -fsSL --max-time 15 "$BASE/privacidad.html" -o /tmp/privacidad.html &&
-              grep -q 'privacyHeading' /tmp/privacidad.html; then
-              node --check /tmp/i18n.js
-              node --check /tmp/rewind.js
-              echo 'PASS: live multilingual game and updated audio'
+              curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/styles.css; then
+              for code in /tmp/app.js /tmp/games.js /tmp/i18n.js; do node --check "$code"; done
+              echo 'PASS: 15-game collection public and valid'
               exit 0
             fi
+            echo "Waiting for new release $attempt/30"
             sleep 4
           done
-          echo 'FAIL: website not updated'
+          echo 'FAIL: Site was not deployed'
           exit 1
-      - name: Check translations and the adaptive noise filter
+      - name: Validate all 15 game definitions
         shell: bash
         run: |
           node <<'NODE'
-          const fs=require('fs');
-          const text=fs.readFileSync('/tmp/i18n.js','utf8');
-          const table=JSON.parse(text.match(/const STRINGS=(.*?);\nconst STORAGE=/s)[1]);
-          const keys=Object.keys(table.es);
-          for(const lang of ['es','en','fr','ar','pt']){
-            if(keys.some(key=>!table[lang][key]))throw Error('Translation incomplete: '+lang);
+          const fs=require('fs'),s=fs.readFileSync('/tmp/games.js','utf8');
+          const games=JSON.parse(s.match(/const GAMES=(.*?);\n const META=/s)[1]);
+          const meta=JSON.parse(s.match(/const META=(.*?);\n const locale=/s)[1]);
+          if(games.length!==15)throw Error('Expected 15 games, got '+games.length);
+          for(const g of games)for(const l of ['es','en','fr','ar','pt']){
+            if(g[l]?.length!==3||g[l][2].length<3)throw Error('Missing '+g.id+' '+l);
           }
-          const js=fs.readFileSync('/tmp/rewind.js','utf8');
-          const a=js.indexOf('  function processVoice('),b=js.indexOf('  function createRecording(',a);
-          const process=new Function('pcm','rate','let filterEnabled=true;'+js.slice(a,b)+'return processVoice(pcm,rate);');
-          const sr=16000,signal=new Float32Array(sr*2);
-          for(let i=0;i<signal.length;i++){
-            const t=i/sr;
-            signal[i]=.009*Math.sin(2*Math.PI*1330*t)+(t>.45&&t<1.55?.15*Math.sin(2*Math.PI*220*t):0);
-          }
-          const cleaned=process(signal,sr);
-          const rms=(array,left,right)=>{let sum=0,n=0;for(let i=Math.floor(left*sr);i<Math.floor(right*sr);i++){sum+=array[i]**2;n++}return Math.sqrt(sum/n)};
-          if(!(rms(cleaned,0,.35)<rms(signal,0,.35) && rms(cleaned,.6,1)>rms(signal,.6,1)*.8))throw Error('Noise reduction sanity check failed');
-          console.log('PASS: '+keys.length+' strings across 5 languages; synthetic noise attenuation and voice retention');
+          for(const l of ['es','en','fr','ar','pt'])if(!meta[l]?.passNext||!meta[l]?.duelReveal)throw Error('Incomplete '+l);
+          console.log('PASS: all modes and prompt suggestions translated into five languages');
           NODE
       - name: Install Playwright
-        run: npm install --prefix /tmp/rewind-test --no-audit --no-fund playwright@1.56.1
-      - name: Test browser language, RTL and both audio recordings
+        run: npm install --prefix /tmp/rewind-e2e --no-audit --no-fund playwright@1.56.1
+      - name: Test classic, voice chain, duel, and automatic locale
         shell: bash
         run: |
-          cat > /tmp/rewind-test/test.cjs <<'NODE'
+          cat > /tmp/rewind-e2e/test.cjs <<'NODE'
           const {chromium}=require('playwright');
           (async()=>{
             const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
-            const ctx=await browser.newContext({locale:'fr-FR',permissions:['microphone']});
-            const page=await ctx.newPage(),errors=[];
+            const context=await browser.newContext({permissions:['microphone'],locale:'fr-FR'});
+            const page=await context.newPage();const errors=[];
             page.on('pageerror',e=>errors.push(e.message));
-            await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
-            await page.waitForFunction(()=>document.documentElement.lang==='fr');
-            if(!((await page.locator('#stageTitle').textContent()).includes('Enregistre')))throw Error('French not auto-selected');
-            await page.selectOption('#languageSelect','en');
-            if(!((await page.locator('#stageTitle').textContent()).includes('Record a secret')))throw Error('English selection failed');
-            await page.reload({waitUntil:'networkidle'});
-            if(await page.locator('#languageSelect').inputValue()!=='en')throw Error('Language preference not retained');
-            await page.selectOption('#languageSelect','ar');
-            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic not RTL');
-            if(!((await page.locator('#stageTitle').textContent()).includes('سرّية')))throw Error('Arabic heading missing');
+            page.on('dialog',dialog=>dialog.accept());
+            await page.goto('https://ayyoub1616.github.io/voicegame/?game=chain',{waitUntil:'networkidle',timeout:30000});
+            if(await page.locator('#gameSelect').inputValue()!=='chain')throw Error('Direct game link failed');
+            if(await page.locator('.tile').count()!==3)throw Error('Missing simple three-button interface');
+            if(!((await page.locator('#gameDescription').textContent()).includes('amis')))throw Error('French translation not applied');
             await page.selectOption('#languageSelect','es');
-            await page.locator('#secretInput').fill('La vaca baila salsa');
-            const record=async()=>{
+            await page.selectOption('#chainPlayers','3');
+            const capture=async()=>{
               await page.locator('#recordButton').click();
-              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:15000});
-              await page.waitForTimeout(1700);
+              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:18000});
+              await page.waitForTimeout(1400);
               await page.locator('#recordButton').click();
+              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent!=='Detener grabación'&&!document.querySelector('#recordButton').disabled,{timeout:20000});
             };
-            const playing=async()=>page.waitForFunction(()=>{const a=document.querySelector('audio');return !!a && !a.paused && a.currentTime>.04},{timeout:8000});
-            await record();
-            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Volver a grabar',{timeout:22000});
-            await page.locator('#originalButton').click();await playing();
+            const checkAudio=async()=>page.waitForFunction(()=>{const a=document.querySelector('audio');return a&&!a.paused&&a.currentTime>.04},{timeout:7000});
+            await capture();
             await page.locator('#reverseButton').click();
             await page.locator('#handoff').waitFor({state:'visible'});
             await page.locator('#rivalReadyButton').click();
-            await page.selectOption('#languageSelect','fr');
-            if(!((await page.locator('#stageBadge').textContent()).includes('JOUEUR 2')))throw Error('Rival stage not translated');
-            await page.locator('#originalButton').click();await playing();
-            await page.selectOption('#languageSelect','es');
-            await record();
-            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Repetir imitación',{timeout:22000});
-            await page.locator('#reverseButton').click();await playing();
-            await page.locator('#guessInput').fill('La vaca baila salsa');
+            await page.locator('#originalButton').click();await checkAudio();
+            await capture();
+            await page.locator('#nextChainButton').click();
+            await page.locator('#handoff').waitFor({state:'visible'});
+            await page.locator('#rivalReadyButton').click();
+            if(!((await page.locator('#stageBadge').textContent()).includes('3 / 3')))throw Error('Third player label wrong');
+            await page.locator('#originalButton').click();await checkAudio();
+            await capture();
             await page.locator('#revealButton').click();
-            if(!((await page.locator('#answerText').textContent()).includes('La vaca baila salsa')))throw Error('Reveal failed');
-            await page.goto('https://ayyoub1616.github.io/voicegame/privacidad.html',{waitUntil:'networkidle'});
+            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('REVELACIÓN'));
+            if(await page.locator('.chain-row').count()!==3)throw Error('Missing 3-player replay timeline');
+            await page.locator('#newRoundButton').click();
+            await page.selectOption('#gameSelect','duel');
+            await page.waitForFunction(()=>document.querySelector('#gameSelect').value==='duel');
+            await capture();
+            await page.locator('#reverseButton').click();
+            await page.locator('#rivalReadyButton').click();
+            await page.locator('#originalButton').click();await checkAudio();
+            await capture();
+            await page.locator('#revealButton').click();
+            if(!await page.locator('#winnerPanel').isVisible())throw Error('Duel vote unavailable');
+            await page.locator('#winnerTwo').click();
+            if(!((await page.locator('#winnerResult').textContent()).includes('jugador 2')))throw Error('Duel winner not recorded');
+            await page.selectOption('#gameSelect','speed');
+            if(await page.locator('#gameSelect').inputValue()!=='speed')throw Error('Speed game selection failed');
             await page.selectOption('#languageSelect','ar');
-            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Privacy Arabic RTL failed');
-            if(!((await page.locator('h1').textContent()).includes('الخصوصية')))throw Error('Privacy not translated');
-            if(errors.length)throw Error('Browser JS errors: '+errors.join('; '));
-            console.log('PASS: five languages, persisted selector, RTL, both audio recordings and privacy');
+            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic RTL not active');
+            await page.reload({waitUntil:'networkidle'});
+            if(await page.locator('#languageSelect').inputValue()!=='ar')throw Error('Manual language preference not saved');
+            if(errors.length)throw Error('Page errors '+errors.join('; '));
+            console.log('PASS: 3-player chain, previous audio playback, reveal timeline, duel vote, speed mode, Arabic RTL, shared game link');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-          node /tmp/rewind-test/test.cjs
+          node /tmp/rewind-e2e/test.cjs

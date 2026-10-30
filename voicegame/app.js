@@ -14,7 +14,13 @@
     next:'<path d="M28 20 65 50 28 80M63 50H24" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>',
     refresh:'<path d="M77 42A29 29 0 1 0 79 57M78 22v23H55" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  const LIMIT=15;
+  const G=window.REWIND_GAMES;
+  const savedMode=(()=>{try{return localStorage.getItem('rewind-game-mode')}catch(_){return null}})();
+  const linkedMode=new URLSearchParams(location.search).get('game');
+  let modeId=G.all.some(g=>g.id===linkedMode)?linkedMode:G.all.some(g=>g.id===savedMode)?savedMode:'reverse';
+  let promptIndex=0,chainIndex=1,chainPlayers=4,chainRecordings=[],winner='';
+  const mode=()=>G.get(modeId),chainMode=()=>mode().kind==='chain',duelMode=()=>mode().kind==='duel';
+  const timeLimit=()=>mode().limit||15;
   let stage='host', recording=false, processing=false, context=null, micStream=null, media=null;
   let captureSource=null, processor=null, silentGain=null, pcmChunks=[],encodedChunks=[],captureRate=44100,clockId=null,begin=0;
   let host=null, rival=null, audio=document.createElement('audio'), playing='', currentPlayback='', filterEnabled=true, pending=false;
@@ -198,8 +204,8 @@
       say('recordingNow');
       clockId=setInterval(()=>{
         if(!recording)return;
-        $('recordDetail').textContent='🔴 '+timerLabel((performance.now()-begin)/1000)+' / 00:15';
-        if((performance.now()-begin)/1000>=LIMIT)endRecording();
+        $('recordDetail').textContent='🔴 '+timerLabel((performance.now()-begin)/1000)+' / '+timerLabel(timeLimit());
+        if((performance.now()-begin)/1000>=timeLimit())endRecording();
       },110);
     }catch(err){
       pending=false;recording=false;processing=false;media=null;
@@ -234,8 +240,17 @@
       }
       if(!pcm)throw new Error(t('cannotDecode'));
       const captured=createRecording(pcm,rate);
-      if(stage==='host'){freeRecording(host);host=captured;}
-      else if(stage==='rival'){freeRecording(rival);rival=captured;}
+      if(stage==='host'){
+        freeRecording(host);host=captured;
+        if(chainMode())chainRecordings[0]=host;
+      }
+      else if(stage==='rival'){
+        if(chainMode()){
+          if(chainRecordings[chainIndex])freeRecording(chainRecordings[chainIndex]);
+          chainRecordings[chainIndex]=captured;
+          rival=captured;
+        }else{freeRecording(rival);rival=captured;}
+      }
       processing=false;render();
       say(stage==='host'?'savedHost':'savedRival');
     }catch(err){
@@ -245,7 +260,7 @@
   function playRecording(rec,side){
     if(!rec){say('playFirst',null,true);return;}
     if(recording||processing||pending){say('waitRecord');return;}
-    const key=(rec===host?'host':'rival')+'-'+side;
+    const key=(rec===host?'host':chainMode()?('chain'+chainRecordings.indexOf(rec)):'rival')+'-'+side;
     if(currentPlayback===key){stopPlaying();render();say('playStopped');return;}
     const url=side==='reverse'?rec.reverseUrl:rec.normalUrl;
     if(!url){say('audioUnavailable',null,true);return;}
@@ -282,16 +297,76 @@
     stopPlaying();stage='reveal';
     const actual=$('secretInput').value.trim();
     const guess=$('guessInput').value.trim();
-    $('answerText').textContent=actual?t('secretWas',{value:actual}):t('answerByVoice');
+    $('answerText').textContent=duelMode()?G.msg('duelReveal'):chainMode()?G.msg('chainResult'):(actual?t('secretWas',{value:actual}):t('answerByVoice'));
     $('guessText').textContent=guess?t('guessed',{value:guess}):'';
     render();say('revealDone');
   }
   function resetRound(){
     stopPlaying();freeRecording(host);freeRecording(rival);
-    host=null;rival=null;pcmChunks=[];encodedChunks=[];
+    for(const rec of chainRecordings)if(rec!==host&&rec!==rival)freeRecording(rec);
+    host=null;rival=null;chainRecordings=[];chainIndex=1;winner='';pcmChunks=[];encodedChunks=[];
     $('secretInput').value='';$('guessInput').value='';
     stage='host';recording=false;processing=false;pending=false;
     render();say('roundReset');
+  }
+  function populateGames(){
+    const select=$('gameSelect');select.replaceChildren();
+    for(const group of ['friends','couples','groups']){
+      const section=document.createElement('optgroup');
+      section.label=G.msg(group);
+      for(const g of G.all.filter(g=>g.group===group)){
+        const option=document.createElement('option');
+        option.value=g.id;option.textContent=G.title(g.id);
+        section.append(option);
+      }
+      select.append(section);
+    }
+    select.value=modeId;
+  }
+  function currentSource(){return chainMode()?chainRecordings[chainIndex-1]:host}
+  function finalRecord(){return chainMode()?chainRecordings[chainRecordings.length-1]:rival}
+  function pickPrompt(){
+    const next=1+Math.floor(Math.random()*3);
+    promptIndex=(promptIndex+next)%4;
+    $('promptText').textContent=G.prompt(modeId,promptIndex);
+  }
+  function changeGame(next){
+    if(recording||processing||pending){$('gameSelect').value=modeId;return;}
+    if(next===modeId)return;
+    if((host||rival)&&!window.confirm(G.msg('resetConfirm'))){$('gameSelect').value=modeId;return;}
+    resetRound();
+    modeId=next;promptIndex=0;
+    try{localStorage.setItem('rewind-game-mode',modeId)}catch(_){}
+    render();
+  }
+  function nextInChain(){
+    if(!chainMode()||stage!=='rival'||!rival||chainIndex>=chainPlayers-1)return;
+    stopPlaying();
+    chainIndex++;
+    rival=null;
+    stage='handoff';
+    render();
+  }
+  function renderHistory(){
+    const list=$('chainHistory');list.replaceChildren();
+    if(!chainMode()||stage!=='reveal')return;
+    chainRecordings.forEach((record,i)=>{
+      if(!record)return;
+      const row=document.createElement('div');row.className='chain-row';
+      const title=document.createElement('span');title.className='chain-row-label';title.textContent=G.msg('chainVoice',{value:i+1});
+      const actions=document.createElement('div');actions.className='chain-row-actions';
+      for(const [side,label] of [['normal','chainOriginal'],['reverse','chainReverse']]){
+        const button=document.createElement('button');button.type='button';button.textContent=G.msg(label);
+        button.addEventListener('click',()=>playRecording(record,side));
+        actions.append(button);
+      }
+      row.append(title,actions);list.append(row);
+    });
+  }
+  function chooseWinner(choice){
+    if(!duelMode()||stage!=='reveal')return;
+    winner=choice;
+    $('winnerResult').textContent=G.msg(choice==='one'?'winnerOne':choice==='two'?'winnerTwo':'winnerTie');
   }
   function iconFor(el,type){el.innerHTML=icons[type];}
   function setTile(which,icon,label,detail,active=false){
@@ -305,26 +380,61 @@
   }
   function render(){
     const hostTurn=stage==='host',rivalTurn=stage==='rival',reveal=stage==='reveal';
-    $('secretPanel').hidden=!hostTurn;
-    $('guessPanel').hidden=!(rivalTurn&&!!rival);
+    $('secretPanel').hidden=!hostTurn || duelMode();
+    $('guessPanel').hidden=!(rivalTurn&&!!rival&&(!chainMode()||chainIndex>=chainPlayers-1));
+    $('guessPanel').querySelector('label').hidden=duelMode();
+    $('guessInput').hidden=duelMode();
+    $('chainNextPanel').hidden=!(rivalTurn&&!!rival&&chainMode()&&chainIndex<chainPlayers-1);
+    $('nextChainButton').textContent=G.msg('passNext');
+    $('revealButton').textContent=duelMode()?G.msg('duelReveal'):chainMode()?G.msg('compare'):t('revealBtn');
+    $('chainHistory').hidden=!(reveal&&chainMode());
+    $('winnerPanel').hidden=!(reveal&&duelMode());
+    $('voteTitle').textContent=G.msg('vote');
+    $('winnerOne').textContent=G.msg('voteOne');
+    $('winnerTwo').textContent=G.msg('voteTwo');
+    $('winnerTie').textContent=G.msg('voteTie');
+    $('winnerResult').textContent=winner?G.msg(winner==='one'?'winnerOne':winner==='two'?'winnerTwo':'winnerTie'):'';
     $('revealPanel').hidden=!reveal;
     $('handoff').hidden=stage!=='handoff';
-    $('stageBadge').textContent=t(hostTurn?'badgeHost':reveal?'badgeReveal':'badgeRival');
+    $('stageBadge').textContent=chainMode()&&!reveal?(G.msg('step')+' '+(hostTurn?1:chainIndex+1)+' / '+chainPlayers):t(hostTurn?'badgeHost':reveal?'badgeReveal':'badgeRival');
     $('stageTitle').textContent=t(hostTurn?'titleHost':reveal?'titleReveal':'titleRival');
-    $('stageHint').textContent=t(hostTurn?'hintHost':reveal?'hintReveal':'hintRival');
-    const press=t(recording?'stopRecord':pending?'startingMic':processing?'processing':'recordHint');
+    $('stageHint').textContent=chainMode()&&rivalTurn?G.msg('chainRivalHint'):duelMode()&&hostTurn?G.msg('duelStart'):duelMode()&&rivalTurn?G.msg('duelRival'):chainMode()&&reveal?G.msg('chainResult'):t(hostTurn?'hintHost':reveal?'hintReveal':'hintRival');
+    $('gameSelectLabel').textContent=G.msg('select');
+    $('gameDescription').textContent=G.description(modeId);
+    $('gameSelect').value=modeId;
+    $('gameSelect').disabled=recording||processing||pending;
+    $('chainControls').hidden=!chainMode();
+    $('chainPlayersLabel').textContent=G.msg('players');
+    $('chainPlayers').disabled=!hostTurn||!!host;
+    $('chainPlayers').value=String(chainPlayers);
+    $('promptBox').hidden=!(hostTurn||(duelMode()&&rivalTurn));
+    $('promptLabel').textContent=G.msg('prompt');
+    $('promptText').textContent=G.prompt(modeId,promptIndex);
+    $('shufflePrompt').setAttribute('aria-label',G.msg('random'));
+    $('shufflePrompt').disabled=recording||processing||pending||!!host||!!rival||!hostTurn;
+    $('handoffTitle').textContent=chainMode()?G.msg('step')+' '+(chainIndex+1)+' / '+chainPlayers:t('handoffTitle');
+    $('handoff').querySelector('p').textContent=chainMode()?G.msg('chainRivalHint'):duelMode()?G.msg('duelRival'):t('handoffDesc');
+    $('rivalReadyButton').textContent=chainMode()?(G.msg('step')+' '+(chainIndex+1)+' ➜'):t('rivalReady');
+    renderHistory();
+    const press=recording?t('stopRecord'):pending?t('startingMic'):processing?t('processing'):mode().limit?('⏱️ '+timeLimit()+'s'):t('recordHint');
     if(hostTurn){
       setTile('red',recording?'stop':'mic',t(recording?'stopRecord':host?'recordAgain':'recordSecret'),press);
       setTile('green','play',t(currentPlayback==='host-normal'?'stopOriginal':'checkVoice'),t(host?'checkVoiceDetail':'onlyAfterRecording'),currentPlayback==='host-normal');
       setTile('blue','next',t('passRival'),t(host?'passReady':'passFirst'));
     }else if(rivalTurn||stage==='handoff'){
       setTile('red',recording?'stop':'mic',t(recording?'stopRecord':rival?'retryImitate':'imitate'),press);
-      setTile('green','reverse',t(currentPlayback==='host-reverse'?'stopAudio':'listenChallenge'), t('reverseSecretDetail'),currentPlayback==='host-reverse');
-      setTile('blue','reverse',t(currentPlayback==='rival-reverse'?'stopAudio':'myVoiceReverse'),t(rival?'myVoiceDetail':'imitationFirst'),currentPlayback==='rival-reverse');
+      const source=currentSource(),greenSide=duelMode()?'normal':'reverse',blueSide=duelMode()?'normal':'reverse';
+      const greenActive=currentPlayback===(source===host?'host':'chain'+chainRecordings.indexOf(source))+'-'+greenSide;
+      const blueActive=currentPlayback===(chainMode()?'chain'+chainIndex:'rival')+'-'+blueSide;
+      setTile('green',duelMode()?'play':'reverse',t(greenActive?'stopAudio':'listenChallenge'),duelMode()?G.msg('duelListen'):t('reverseSecretDetail'),greenActive);
+      setTile('blue',duelMode()?'play':'reverse',t(blueActive?'stopAudio':'myVoiceReverse'),duelMode()?G.msg('duelMine'):t(rival?'myVoiceDetail':'imitationFirst'),blueActive);
     }else{
       setTile('red','refresh',t('newRound'),t('letsPlay'));
       setTile('green','play',t(currentPlayback==='host-normal'?'stopOriginal':'playOriginal'),t('revealOriginal'),currentPlayback==='host-normal');
-      setTile('blue','reverse',t(currentPlayback==='rival-reverse'?'stopImitation':'playRival'),t('revealRival'),currentPlayback==='rival-reverse');
+      const side=duelMode()?'normal':'reverse';
+      const record=finalRecord();
+      const active=currentPlayback===(chainMode()?'chain'+chainRecordings.indexOf(record):'rival')+'-'+side;
+      setTile('blue',duelMode()?'play':'reverse',t(active?'stopImitation':'playRival'),duelMode()?G.msg('duelMine'):t('revealRival'),active);
     }
     $('filterToggle').checked=filterEnabled;
   }
@@ -335,13 +445,13 @@
   }
   function onGreen(){
     if(stage==='host')return playRecording(host,'normal');
-    if(stage==='rival')return playRecording(host,'reverse');
+    if(stage==='rival')return playRecording(currentSource(),duelMode()?'normal':'reverse');
     if(stage==='reveal')return playRecording(host,'normal');
   }
   function onBlue(){
     if(stage==='host')return toHandoff();
-    if(stage==='rival')return playRecording(rival,'reverse');
-    if(stage==='reveal')return playRecording(rival,'reverse');
+    if(stage==='rival')return playRecording(rival,duelMode()?'normal':'reverse');
+    if(stage==='reveal')return playRecording(finalRecord(),duelMode()?'normal':'reverse');
   }
   function openPanel(name){
     for(const [panel,btn] of [['helpPanel','helpButton'],['filterPanel','filterButton']]){
@@ -355,6 +465,11 @@
   $('rivalReadyButton').addEventListener('click',toRival);
   $('revealButton').addEventListener('click',toReveal);
   $('newRoundButton').addEventListener('click',resetRound);
+  $('nextChainButton').addEventListener('click',nextInChain);
+  $('shufflePrompt').addEventListener('click',pickPrompt);
+  $('gameSelect').addEventListener('change',e=>changeGame(e.target.value));
+  $('chainPlayers').addEventListener('change',e=>{if(host){e.target.value=String(chainPlayers);return;}chainPlayers=Math.max(3,Math.min(6,Number(e.target.value)||4));render()});
+  for(const button of document.querySelectorAll('[data-winner]'))button.addEventListener('click',()=>chooseWinner(button.dataset.winner));
   $('helpButton').addEventListener('click',()=>openPanel('helpPanel'));
   $('filterButton').addEventListener('click',()=>openPanel('filterPanel'));
   $('filterToggle').addEventListener('change',e=>{
@@ -362,8 +477,8 @@
     filterEnabled=e.target.checked;say(filterEnabled?'filterOn':'filterOff');
   });
   $('shareButton').addEventListener('click',()=>{
-    const url='https://ayyoub1616.github.io/voicegame/';
-    const message=t('shareMessage');
+    const url='https://ayyoub1616.github.io/voicegame/?game='+encodeURIComponent(modeId);
+    const message=G.msg('shareGame',{value:G.title(modeId)})+' '+t('shareMessage');
     try{
       if(navigator.share){const p=navigator.share({title:t('shareTitle'),text:message,url});p?.catch(err=>{if(err.name!=='AbortError')say('shareLink',{value:url});});}
       else if(navigator.clipboard?.writeText)navigator.clipboard.writeText(message+' '+url).then(()=>say('shareCopied')).catch(()=>say('shareLink',{value:url}));
@@ -375,15 +490,15 @@
     disposeCapture();freeRecording(host);freeRecording(rival);
   });
   window.addEventListener('rewind:language',()=>{
-    render();
+    populateGames();render();
     if(stage==='reveal'){
       const actual=$('secretInput').value.trim(),guess=$('guessInput').value.trim();
-      $('answerText').textContent=actual?t('secretWas',{value:actual}):t('answerByVoice');
+      $('answerText').textContent=duelMode()?G.msg('duelReveal'):chainMode()?G.msg('chainResult'):(actual?t('secretWas',{value:actual}):t('answerByVoice'));
       $('guessText').textContent=guess?t('guessed',{value:guess}):'';
     }
     if(notice)notify(t(notice.key,notice.vars),notice.error);
   });
-  render();
+  populateGames();render();
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   }
