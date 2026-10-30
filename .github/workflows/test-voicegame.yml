@@ -24,6 +24,7 @@ jobs:
               grep -q 'rewind-language-v1' /tmp/i18n.js &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/rewind.js &&
               grep -q 'floor\*2.35' /tmp/rewind.js &&
+              grep -q 'let gain=.16' /tmp/rewind.js &&
               curl -fsSL --max-time 15 "$BASE/privacidad.html" -o /tmp/privacidad.html &&
               grep -q 'privacyHeading' /tmp/privacidad.html; then
               node --check /tmp/i18n.js
