@@ -2,6 +2,9 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
+  const t = (key,vars) => window.REWIND_L10N?.t(key,vars) || key;
+  let notice={key:'feedbackInit',vars:null,error:false};
+  const say=(key,vars=null,error=false)=>{notice={key,vars,error};notify(t(key,vars),error);};
   const buttons = { red: $('recordButton'), green: $('originalButton'), blue: $('reverseButton') };
   const icons = {
     mic:'<rect x="38" y="15" width="24" height="46" rx="12" fill="currentColor"/><path d="M26 49a24 24 0 0 0 48 0M50 73v15M37 88h26" stroke="currentColor" fill="none" stroke-width="7" stroke-linecap="round"/>',
@@ -26,7 +29,7 @@
   function audioContext(){
     if(!context){
       const Type=window.AudioContext||window.webkitAudioContext;
-      if(!Type)throw new Error('El navegador no permite grabar audio.');
+      if(!Type)throw new Error(t('recordUnsupported'));
       context=new Type();
     }
     return context;
@@ -62,28 +65,59 @@
   }
   function processVoice(pcm,rate){
     if(!filterEnabled)return pcm;
-    // Gentle high/low-pass and reduction of very quiet background noise.
-    const out=new Float32Array(pcm.length);
-    const high=Math.exp(-2*Math.PI*95/rate);
-    const low=Math.exp(-2*Math.PI*6500/rate);
-    let oldIn=0,highLast=0,lowLast=0,max=0;
+    // 1. Restrict the signal to the normal speech band to remove low hum and high hiss.
+    //    A gentle, frame-based expander then reduces background noise between words.
+    //    The built-in browser noise/echo suppression acts before this stage.
+    const filtered=new Float32Array(pcm.length);
+    const high=Math.exp(-2*Math.PI*100/rate);
+    const low=Math.exp(-2*Math.PI*Math.min(7000,rate*.44)/rate);
+    let lastIn=0,lastHigh=0,lastLow=0;
     for(let i=0;i<pcm.length;i++){
-      const h=high*(highLast+pcm[i]-oldIn);
-      oldIn=pcm[i];highLast=h;
-      lowLast=(1-low)*h+low*lowLast;
-      let v=lowLast;
-      // Soft attenuation, not complete muting, to preserve syllable beginnings.
-      const level=Math.abs(v);
-      if(level<.012)v*=.58+.42*(level/.012);
-      out[i]=v;max=Math.max(max,Math.abs(v));
+      const highValue=high*(lastHigh+pcm[i]-lastIn);
+      lastIn=pcm[i];lastHigh=highValue;
+      lastLow=(1-low)*highValue+low*lastLow;
+      filtered[i]=lastLow;
     }
-    const gain=max>.002?Math.min(1.5,.88/max):1;
-    if(gain!==1)for(let i=0;i<out.length;i++)out[i]=Math.max(-1,Math.min(1,out[i]*gain));
+    // 2. Estimate the noise floor from the quietest 20 ms sections. This threshold
+    //    adapts to microphone noise without assuming the user starts in silence.
+    const frameSize=Math.max(192,Math.round(rate*.02));
+    const count=Math.ceil(filtered.length/frameSize);
+    const energy=new Float32Array(count);
+    for(let f=0;f<count;f++){
+      const from=f*frameSize,to=Math.min(filtered.length,from+frameSize);
+      let power=0;
+      for(let j=from;j<to;j++)power+=filtered[j]*filtered[j];
+      energy[f]=Math.sqrt(power/Math.max(1,to-from));
+    }
+    const order=Array.from(energy).sort((a,b)=>a-b);
+    const floor=order[Math.min(order.length-1,Math.floor(order.length*.17))]||0;
+    const threshold=Math.max(.006,Math.min(.035,floor*2.35));
+    // 3. Soft noise gate, with short attack and long release. Hard gates clip
+    //    quiet syllables; attenuation is deliberately limited to 16%.
+    const out=new Float32Array(filtered.length);
+    const attack=Math.exp(-1/(rate*.005));
+    const release=Math.exp(-1/(rate*.12));
+    let gain=1,peak=0;
+    for(let i=0;i<filtered.length;i++){
+      const rms=energy[Math.min(count-1,Math.floor(i/frameSize))]||0;
+      const relative=Math.min(1,rms/threshold);
+      const target=.16+.84*relative*relative;
+      const smoothing=target>gain?attack:release;
+      gain=target+(gain-target)*smoothing;
+      const value=filtered[i]*gain;
+      out[i]=value;
+      peak=Math.max(peak,Math.abs(value));
+    }
+    // 4. Conservative automatic normalization; limiter prevents clipping.
+    const boost=peak>.003?Math.min(2.2,.86/peak):1;
+    if(boost!==1)for(let i=0;i<out.length;i++){
+      out[i]=Math.max(-.98,Math.min(.98,out[i]*boost));
+    }
     return out;
   }
   function createRecording(pcm,rate){
-    if(!pcm?.length)throw new Error('La grabación está vacía.');
-    if(pcm.length/rate<.22)throw new Error('Habla un poco más de tiempo.');
+    if(!pcm?.length)throw new Error(t('audioEmpty'));
+    if(pcm.length/rate<.22)throw new Error(t('recordLonger'));
     const refined=processVoice(pcm,rate);
     const raw=URL.createObjectURL(wav(refined,rate));
     const backwards=URL.createObjectURL(wav(refined,rate,true));
@@ -133,15 +167,15 @@
   function pickMime(){return nativeCodes.find(m=>window.MediaRecorder?.isTypeSupported?.(m))||'';}
   async function beginRecording(){
     if(recording||processing||pending)return;
-    if(!navigator.mediaDevices?.getUserMedia){notify('Activa HTTPS y permite el micrófono en Safari o Chrome.',true);return;}
+    if(!navigator.mediaDevices?.getUserMedia){say('micHttps',null,true);return;}
     if(stage!=='host'&&stage!=='rival')return;
-    stopPlaying();pending=true;render();notify('🎤 Permite el micrófono para empezar.');
+    stopPlaying();pending=true;render();say('micAllow');
     try {
       // Unlock WebAudio inside a real tap on iPhone. Actual playback uses native HTML audio.
       const ctx=audioContext();
       ctx.resume().catch(()=>{});
       micStream=await navigator.mediaDevices.getUserMedia({
-        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1},
+        audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:false},channelCount:{ideal:1}},
         video:false
       });
       pcmChunks=[];encodedChunks=[];
@@ -152,16 +186,16 @@
           media=new MediaRecorder(micStream,mime?{mimeType:mime}:undefined);
           media.ondataavailable=e=>{if(e.data?.size)encodedChunks.push(e.data)};
           media.onstop=()=>finishRecording();
-          media.onerror=()=>notify('⚠️ Error durante la grabación. Prueba otra vez.',true);
+          media.onerror=()=>say('errorRecording',null,true);
         } catch (err) {
           media=null;
           if(!pcmAvailable)throw err;
         }
-      }else if(!pcmAvailable)throw new Error('Este navegador no admite grabaciones.');
+      }else if(!pcmAvailable)throw new Error(t('recordUnsupported'));
       recording=true;pending=false;
       if(media)media.start(200);
       begin=performance.now();render();
-      notify('🔴 Grabando… pulsa el botón rojo para detener.');
+      say('recordingNow');
       clockId=setInterval(()=>{
         if(!recording)return;
         $('recordDetail').textContent='🔴 '+timerLabel((performance.now()-begin)/1000)+' / 00:15';
@@ -170,15 +204,14 @@
     }catch(err){
       pending=false;recording=false;processing=false;media=null;
       disposeCapture();render();
-      const text=err.name==='NotAllowedError'?'Permite usar el micrófono en los ajustes del navegador.':
-        err.name==='NotFoundError'?'No se ha detectado ningún micrófono.':err.message||'No se pudo grabar.';
-      notify('⚠️ '+text,true);
+      const key=err.name==='NotAllowedError'?'micDenied':err.name==='NotFoundError'?'micMissing':'micFailure';
+      say(key,null,true);
     }
   }
   function endRecording(){
     if(!recording)return;
     recording=false;processing=true;clearTimer();render();
-    notify('✨ Preparando tu voz…');
+    say('audioPreparing');
     if(media?.state==='recording'){
       try{media.stop();return}catch(_){}
     }
@@ -199,42 +232,42 @@
           for(let i=0;i<pcm.length;i++)pcm[i]+=samples[i]/data.numberOfChannels;
         }
       }
-      if(!pcm)throw new Error('No se pudo decodificar el audio. Vuelve a grabar.');
+      if(!pcm)throw new Error(t('cannotDecode'));
       const captured=createRecording(pcm,rate);
       if(stage==='host'){freeRecording(host);host=captured;}
       else if(stage==='rival'){freeRecording(rival);rival=captured;}
       processing=false;render();
-      notify(stage==='host'?'✅ ¡Frase guardada! Pasa el móvil al rival.':'✅ ¡Imitación lista! Dale al botón azul para escucharla al revés. 🎧');
+      say(stage==='host'?'savedHost':'savedRival');
     }catch(err){
-      processing=false;render();notify('⚠️ '+(err.message||'No se pudo procesar la voz.'),true);
+      processing=false;render();notify('⚠️ '+(err.message||t('micFailure')),true);notice=null;
     }finally{pcmChunks=[];encodedChunks=[];}
   }
   function playRecording(rec,side){
-    if(!rec){notify('🎙️ Primero graba un audio.',true);return;}
-    if(recording||processing||pending){notify('Espera a que termine la grabación.');return;}
+    if(!rec){say('playFirst',null,true);return;}
+    if(recording||processing||pending){say('waitRecord');return;}
     const key=(rec===host?'host':'rival')+'-'+side;
-    if(currentPlayback===key){stopPlaying();render();notify('⏹️ Reproducción detenida.');return;}
+    if(currentPlayback===key){stopPlaying();render();say('playStopped');return;}
     const url=side==='reverse'?rec.reverseUrl:rec.normalUrl;
-    if(!url){notify('El audio no está disponible. Vuelve a grabar.',true);return;}
+    if(!url){say('audioUnavailable',null,true);return;}
     stopPlaying();
     // HTMLAudioElement.play() is deliberately called directly in the button click handler.
     // Avoid awaiting AudioContext.resume() before playback: iPhone loses user activation.
     audio.src=url;
     audio.currentTime=0;
     audio.onended=()=>{playing='';currentPlayback='';render();};
-    audio.onerror=()=>{stopPlaying();render();notify('⚠️ Error de reproducción. Comprueba el volumen y vuelve a intentarlo.',true);};
+    audio.onerror=()=>{stopPlaying();render();say('errorAudio',null,true);};
     currentPlayback=key;playing=side;render();
     try{
       const promise=audio.play();
       if(promise?.catch)promise.catch(err=>{
         if(currentPlayback!==key)return;
         stopPlaying();render();
-        notify('⚠️ El móvil bloqueó el audio. Toca de nuevo el botón y comprueba que Safari tiene sonido. '+(err?.name||''),true);
+        say('audioBlocked',null,true);
       });
-    }catch(err){stopPlaying();render();notify('⚠️ No se puede reproducir el audio: '+err.message,true);}
+    }catch(err){stopPlaying();render();say('errorAudio',null,true);}
   }
   function toHandoff(){
-    if(!host){notify('🎙️ Graba primero tu frase secreta.',true);return;}
+    if(!host){say('passNeed',null,true);return;}
     if(recording||processing||pending)return;
     stopPlaying();
     stage='handoff';$('handoff').hidden=false;render();
@@ -242,29 +275,30 @@
   function toRival(){
     if(!host)return;
     stage='rival';$('handoff').hidden=true;render();
-    notify('🎧 Escucha el sonido invertido con el botón verde. ¡Después imítalo!');
+    say('rivalGo');
   }
   function toReveal(){
     if(!rival)return;
     stopPlaying();stage='reveal';
     const actual=$('secretInput').value.trim();
     const guess=$('guessInput').value.trim();
-    $('answerText').textContent=actual?'💬 La frase secreta era: «'+actual+'»':'🎧 Pulsa el botón verde para escuchar lo que dijo realmente el jugador 1.';
-    $('guessText').textContent=guess?'🤔 El rival respondió: «'+guess+'»':'';
-    render();notify('🥳 ¡Reto completado! Ahora escucha la frase original.');
+    $('answerText').textContent=actual?t('secretWas',{value:actual}):t('answerByVoice');
+    $('guessText').textContent=guess?t('guessed',{value:guess}):'';
+    render();say('revealDone');
   }
   function resetRound(){
     stopPlaying();freeRecording(host);freeRecording(rival);
     host=null;rival=null;pcmChunks=[];encodedChunks=[];
     $('secretInput').value='';$('guessInput').value='';
     stage='host';recording=false;processing=false;pending=false;
-    render();notify('🎙️ ¡Nueva ronda! Graba una frase en secreto.');
+    render();say('roundReset');
   }
   function iconFor(el,type){el.innerHTML=icons[type];}
   function setTile(which,icon,label,detail,active=false){
     const item=buttons[which],identifier=which==='red'?'record':which==='green'?'original':'reverse';
     iconFor($(identifier+'Icon'),icon);
     $(identifier+'Label').textContent=label;$(identifier+'Detail').textContent=detail;
+    item.setAttribute('aria-label',label);
     item.classList.toggle('is-playing',active&&!!currentPlayback);
     item.classList.toggle('is-recording',which==='red'&&recording);
     item.disabled=processing||pending;
@@ -275,24 +309,22 @@
     $('guessPanel').hidden=!(rivalTurn&&!!rival);
     $('revealPanel').hidden=!reveal;
     $('handoff').hidden=stage!=='handoff';
-    $('stageBadge').textContent=hostTurn?'🎙️ JUGADOR 1':reveal?'🎉 ¡REVELACIÓN!':'🎧 JUGADOR 2';
-    $('stageTitle').textContent=hostTurn?'Graba una frase secreta':reveal?'¿Has acertado? 🤯':'¡Imita lo que oyes al revés!';
-    $('stageHint').textContent=hostTurn?'Tu rival no debe escuchar la voz original. 🤫':
-      reveal?'Compara la voz original con la imitación invertida.':
-      'Escucha el reto en reversa, repítelo con tu voz y adivina.';
-    const press=recording?'⏹ Detener grabación':pending?'🎙️ Activando micro…':processing?'✨ Procesando…':'🎙️ Toca para grabar · máximo 15 s';
+    $('stageBadge').textContent=t(hostTurn?'badgeHost':reveal?'badgeReveal':'badgeRival');
+    $('stageTitle').textContent=t(hostTurn?'titleHost':reveal?'titleReveal':'titleRival');
+    $('stageHint').textContent=t(hostTurn?'hintHost':reveal?'hintReveal':'hintRival');
+    const press=t(recording?'stopRecord':pending?'startingMic':processing?'processing':'recordHint');
     if(hostTurn){
-      setTile('red',recording?'stop':'mic',recording?'Detener grabación':host?'Volver a grabar':'Grabar secreto',press);
-      setTile('green','play',currentPlayback==='host-normal'?'⏹ Detener original':'Escuchar mi frase',host?'▶️ Comprueba la grabación':'▶️ Se activa cuando grabes',currentPlayback==='host-normal');
-      setTile('blue','next','Pasar al rival',host?'➡️ ¡Tu turno ha terminado!':'➡️ Graba primero tu secreto');
+      setTile('red',recording?'stop':'mic',t(recording?'stopRecord':host?'recordAgain':'recordSecret'),press);
+      setTile('green','play',t(currentPlayback==='host-normal'?'stopOriginal':'checkVoice'),t(host?'checkVoiceDetail':'onlyAfterRecording'),currentPlayback==='host-normal');
+      setTile('blue','next',t('passRival'),t(host?'passReady':'passFirst'));
     }else if(rivalTurn||stage==='handoff'){
-      setTile('red',recording?'stop':'mic',recording?'Detener grabación':rival?'Repetir imitación':'Grabar imitación',press);
-      setTile('green','reverse',currentPlayback==='host-reverse'?'⏹ Detener audio':'Escuchar el reto', '⏪ La frase secreta al revés',currentPlayback==='host-reverse');
-      setTile('blue','reverse',currentPlayback==='rival-reverse'?'⏹ Detener audio':'Mi voz al revés',rival?'🤪 ¿Se parece a una frase real?':'⏪ Primero graba tu imitación',currentPlayback==='rival-reverse');
+      setTile('red',recording?'stop':'mic',t(recording?'stopRecord':rival?'retryImitate':'imitate'),press);
+      setTile('green','reverse',t(currentPlayback==='host-reverse'?'stopAudio':'listenChallenge'), t('reverseSecretDetail'),currentPlayback==='host-reverse');
+      setTile('blue','reverse',t(currentPlayback==='rival-reverse'?'stopAudio':'myVoiceReverse'),t(rival?'myVoiceDetail':'imitationFirst'),currentPlayback==='rival-reverse');
     }else{
-      setTile('red','refresh','Nueva ronda','🎙️ ¡Vamos a jugar otra vez!');
-      setTile('green','play',currentPlayback==='host-normal'?'⏹ Detener original':'Escuchar original','▶️ ¡Esta era la frase secreta!',currentPlayback==='host-normal');
-      setTile('blue','reverse',currentPlayback==='rival-reverse'?'⏹ Detener imitación':'Imitación al revés','⏪ ¡Escucha lo que consiguió el rival!',currentPlayback==='rival-reverse');
+      setTile('red','refresh',t('newRound'),t('letsPlay'));
+      setTile('green','play',t(currentPlayback==='host-normal'?'stopOriginal':'playOriginal'),t('revealOriginal'),currentPlayback==='host-normal');
+      setTile('blue','reverse',t(currentPlayback==='rival-reverse'?'stopImitation':'playRival'),t('revealRival'),currentPlayback==='rival-reverse');
     }
     $('filterToggle').checked=filterEnabled;
   }
@@ -326,21 +358,30 @@
   $('helpButton').addEventListener('click',()=>openPanel('helpPanel'));
   $('filterButton').addEventListener('click',()=>openPanel('filterPanel'));
   $('filterToggle').addEventListener('change',e=>{
-    if(recording||processing||pending){e.target.checked=filterEnabled;notify('⏳ Termina la grabación antes de cambiar los ajustes.');return;}
-    filterEnabled=e.target.checked;notify(filterEnabled?'✨ Filtro de voz activado para la próxima grabación.':'🎧 Filtro adicional desactivado para la próxima grabación.');
+    if(recording||processing||pending){e.target.checked=filterEnabled;say('settingsWait');return;}
+    filterEnabled=e.target.checked;say(filterEnabled?'filterOn':'filterOff');
   });
   $('shareButton').addEventListener('click',()=>{
     const url='https://ayyoub1616.github.io/voicegame/';
-    const message='🎙️⏪ ¡Te reto a adivinar mi voz al revés! REWIND!';
+    const message=t('shareMessage');
     try{
-      if(navigator.share){const p=navigator.share({title:'REWIND! — reto para dos',text:message,url});p?.catch(err=>{if(err.name!=='AbortError')notify('📲 Comparte este enlace: '+url);});}
-      else if(navigator.clipboard?.writeText)navigator.clipboard.writeText(message+' '+url).then(()=>notify('✅ ¡Enlace copiado para compartir!')).catch(()=>notify(url));
-      else notify('📲 Comparte este enlace: '+url);
-    }catch(_){notify('📲 Comparte este enlace: '+url);}
+      if(navigator.share){const p=navigator.share({title:t('shareTitle'),text:message,url});p?.catch(err=>{if(err.name!=='AbortError')say('shareLink',{value:url});});}
+      else if(navigator.clipboard?.writeText)navigator.clipboard.writeText(message+' '+url).then(()=>say('shareCopied')).catch(()=>say('shareLink',{value:url}));
+      else say('shareLink',{value:url});
+    }catch(_){say('shareLink',{value:url});}
   });
   window.addEventListener('pagehide',()=>{
     clearTimer();stopPlaying();if(media?.state==='recording')try{media.stop()}catch(_){}
     disposeCapture();freeRecording(host);freeRecording(rival);
+  });
+  window.addEventListener('rewind:language',()=>{
+    render();
+    if(stage==='reveal'){
+      const actual=$('secretInput').value.trim(),guess=$('guessInput').value.trim();
+      $('answerText').textContent=actual?t('secretWas',{value:actual}):t('answerByVoice');
+      $('guessText').textContent=guess?t('guessed',{value:guess}):'';
+    }
+    if(notice)notify(t(notice.key,notice.vars),notice.error);
   });
   render();
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){

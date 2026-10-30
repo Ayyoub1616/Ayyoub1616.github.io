@@ -12,79 +12,81 @@
 <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="stylesheet" href="./styles.css">
+<script src="./i18n.js" defer></script>
 <script src="./app.js" defer></script>
 </head>
 <body>
 <div class="page">
   <header class="toolbar">
-    <button type="button" class="tool" id="helpButton" aria-label="Cómo jugar" aria-controls="helpPanel" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8h22M5 16h22M5 24h22"/></svg></button>
-    <div class="toolbar-title">REWIND<span>!</span></div>
+    <button type="button" class="tool" id="helpButton" data-i18n-aria="helpAria" aria-label="Cómo jugar" aria-controls="helpPanel" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8h22M5 16h22M5 24h22"/></svg></button>
+    <div class="toolbar-title" dir="ltr">REWIND<span>!</span></div>
     <div class="toolbar-right">
-      <button type="button" class="tool" id="filterButton" aria-label="Ajustes de sonido" aria-controls="filterPanel" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 8h24M4 16h24M4 24h24"/><circle cx="21" cy="8" r="3.2"/><circle cx="11" cy="16" r="3.2"/><circle cx="23" cy="24" r="3.2"/></svg></button>
-      <button type="button" class="share-button" id="shareButton" aria-label="Compartir REWIND"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0-4 4m4-4 4 4M5 13v5a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-5"/></svg>Compartir</button>
+      <label for="languageSelect" class="lang-label"><span aria-hidden="true">🌐</span><span class="sr-only" data-i18n="languageAria">Idioma</span><select id="languageSelect" aria-label="Idioma"><option value="es">🇪🇸 ES</option><option value="en">🇬🇧 EN</option><option value="fr">🇫🇷 FR</option><option value="ar">🇲🇦 AR</option><option value="pt">🇵🇹 PT</option></select></label>
+      <button type="button" class="tool" id="filterButton" data-i18n-aria="settingsAria" aria-label="Ajustes de sonido" aria-controls="filterPanel" aria-expanded="false"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 8h24M4 16h24M4 24h24"/><circle cx="21" cy="8" r="3.2"/><circle cx="11" cy="16" r="3.2"/><circle cx="23" cy="24" r="3.2"/></svg></button>
+      <button type="button" class="share-button" id="shareButton" data-i18n-aria="share" aria-label="Compartir REWIND"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0-4 4m4-4 4 4M5 13v5a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-5"/></svg><span data-i18n="share">Compartir</span></button>
     </div>
   </header>
   <div class="drawer" id="helpPanel" hidden>
-    <strong>🎮 ¿Cómo se juega?</strong>
-    <p>1️⃣ La primera persona graba una frase en secreto.</p>
-    <p>2️⃣ Pasa el móvil. El rival escucha esa voz <b>al revés</b>.</p>
-    <p>3️⃣ El rival intenta imitar los sonidos invertidos.</p>
-    <p>4️⃣ Escucha su imitación al revés, intenta adivinar y descubre la frase original.</p>
+    <strong data-i18n="helpTitle">🎮 ¿Cómo se juega?</strong>
+    <p data-i18n="help1">1️⃣ La primera persona graba una frase en secreto.</p>
+    <p data-i18n="help2">2️⃣ Pasa el móvil. El rival escucha esa voz al revés.</p>
+    <p data-i18n="help3">3️⃣ El rival intenta imitar los sonidos invertidos.</p>
+    <p data-i18n="help4">4️⃣ Escucha su imitación al revés, intenta adivinar y descubre la frase original.</p>
   </div>
   <div class="drawer" id="filterPanel" hidden>
-    <strong>🎚️ Calidad del sonido</strong>
-    <label class="switch-row" for="filterToggle">✨ Reducir ruido de fondo <input id="filterToggle" type="checkbox" checked></label>
-    <p>Se utiliza la cancelación de ruido del micrófono y un filtro suave. No puede eliminar todos los sonidos.</p>
+    <strong data-i18n="qualityTitle">🎚️ Calidad del sonido</strong>
+    <label class="switch-row" for="filterToggle"><span data-i18n="qualityToggle">✨ Reducir ruido de fondo</span> <input id="filterToggle" type="checkbox" checked></label>
+    <p data-i18n="qualityDesc">Se utiliza la cancelación de ruido del micrófono y un filtro suave. No puede eliminar todos los sonidos.</p>
   </div>
   <main>
     <section class="round-top" aria-live="polite">
-      <div class="stage-badge" id="stageBadge">🎙️ JUGADOR 1</div>
-      <h1 id="stageTitle">Graba una frase secreta</h1>
-      <p id="stageHint">El rival no debe escuchar tu grabación original. 🤫</p>
+      <div class="stage-badge" id="stageBadge" data-i18n="badgeHost">🎙️ JUGADOR 1</div>
+      <h1 id="stageTitle" data-i18n="titleHost">Graba una frase secreta</h1>
+      <p id="stageHint" data-i18n="hintHost">El rival no debe escuchar tu grabación original. 🤫</p>
     </section>
     <section class="tiles" aria-label="Botones del juego">
       <button class="tile tile-record" id="recordButton" type="button" aria-label="Empezar grabación">
         <span class="tile-icon" id="recordIcon"><svg viewBox="0 0 100 100" aria-hidden="true"><rect x="38" y="15" width="24" height="46" rx="12" fill="currentColor"/><path d="M26 49a24 24 0 0 0 48 0M50 73v15M37 88h26" stroke="currentColor" fill="none" stroke-width="7" stroke-linecap="round"/></svg></span>
-        <span class="tile-label" id="recordLabel">Grabar secreto</span>
-        <span class="tile-detail" id="recordDetail">🎙️ Toca para grabar · máximo 15 s</span>
+        <span class="tile-label" id="recordLabel" data-i18n="recordSecret">Grabar secreto</span>
+        <span class="tile-detail" id="recordDetail" data-i18n="recordHint">🎙️ Toca para grabar · máximo 15 s</span>
       </button>
       <button class="tile tile-original" id="originalButton" type="button" aria-label="Escuchar la grabación">
         <span class="tile-icon" id="originalIcon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M33 20 Q33 16 39 19 L79 45 Q85 50 79 55 L39 81 Q33 85 33 78Z" fill="currentColor"/></svg></span>
-        <span class="tile-label" id="originalLabel">Escuchar mi frase</span>
-        <span class="tile-detail" id="originalDetail">▶️ Comprueba la grabación</span>
+        <span class="tile-label" id="originalLabel" data-i18n="checkVoice">Escuchar mi frase</span>
+        <span class="tile-detail" id="originalDetail" data-i18n="checkVoiceDetail">▶️ Comprueba la grabación</span>
       </button>
       <button class="tile tile-reverse" id="reverseButton" type="button" aria-label="Pasar el turno">
         <span class="tile-icon" id="reverseIcon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M71 19 33 50l38 31" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 50h42" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/></svg></span>
-        <span class="tile-label" id="reverseLabel">Pasar al rival</span>
-        <span class="tile-detail" id="reverseDetail">➡️ Cuando hayas grabado</span>
+        <span class="tile-label" id="reverseLabel" data-i18n="passRival">Pasar al rival</span>
+        <span class="tile-detail" id="reverseDetail" data-i18n="passFirst">➡️ Cuando hayas grabado</span>
       </button>
     </section>
     <section id="secretPanel" class="aux-panel" aria-label="Frase opcional">
-      <label for="secretInput">🤫 Frase secreta escrita <span>(opcional)</span></label>
-      <input id="secretInput" type="text" maxlength="140" placeholder="Puedes escribirla para revelarla al final" autocomplete="off" autocapitalize="sentences">
+      <label for="secretInput"><span data-i18n="secretLabel">🤫 Frase secreta escrita</span> <span data-i18n="optional">(opcional)</span></label>
+      <input id="secretInput" type="text" maxlength="140" data-i18n-placeholder="secretPlaceholder" placeholder="Puedes escribirla para revelarla al final" autocomplete="off" autocapitalize="sentences">
     </section>
     <section id="guessPanel" class="aux-panel guess-panel" hidden>
-      <label for="guessInput">🤔 ¿Qué crees que dijo el jugador 1?</label>
-      <input id="guessInput" type="text" maxlength="140" placeholder="Escribe tu respuesta (opcional)" autocomplete="off">
-      <button class="next-button" type="button" id="revealButton">🎉 ¡Revelar la frase original!</button>
+      <label for="guessInput" data-i18n="guessLabel">🤔 ¿Qué crees que dijo el jugador 1?</label>
+      <input id="guessInput" type="text" maxlength="140" data-i18n-placeholder="guessPlaceholder" placeholder="Escribe tu respuesta (opcional)" autocomplete="off">
+      <button class="next-button" type="button" id="revealButton" data-i18n="revealBtn">🎉 ¡Revelar la frase original!</button>
     </section>
     <section id="revealPanel" class="aux-panel answer-panel" hidden>
       <div class="answer-emoji">🎉🤣</div>
-      <strong>¡Misterio resuelto!</strong>
-      <p id="answerText">Escucha la voz original y descubre lo que dijo.</p>
+      <strong data-i18n="answerTitle">¡Misterio resuelto!</strong>
+      <p id="answerText" data-i18n="answerDefault">Escucha la voz original y descubre lo que dijo.</p>
       <p id="guessText" class="guess-answer"></p>
-      <button class="next-button" type="button" id="newRoundButton">🔄 Nueva ronda</button>
+      <button class="next-button" type="button" id="newRoundButton" data-i18n="newRoundBtn">🔄 Nueva ronda</button>
     </section>
-    <p class="feedback" id="feedback" role="status" aria-live="polite">🔒 Juego por turnos en el mismo móvil · Sin cuentas</p>
+    <p class="feedback" id="feedback" data-i18n="feedbackInit" role="status" aria-live="polite">🔒 Juego por turnos en el mismo móvil · Sin cuentas</p>
   </main>
-  <footer>REWIND! 🌀 · <a href="./privacidad.html">Privacidad</a></footer>
+  <footer>REWIND! 🌀 · <a href="./privacidad.html" data-i18n="privacy">Privacidad</a></footer>
 </div>
 <div class="handoff" id="handoff" hidden role="dialog" aria-modal="true" aria-labelledby="handoffTitle">
   <div class="handoff-content">
     <div class="handoff-emoji">📱🤫</div>
-    <h2 id="handoffTitle">¡Pasa el móvil al rival!</h2>
-    <p>Que no vea ni escuche el audio original. Su misión es escuchar el sonido al revés e intentar imitarlo.</p>
-    <button id="rivalReadyButton" type="button">🙋 ¡Soy el rival, estoy listo!</button>
+    <h2 id="handoffTitle" data-i18n="handoffTitle">¡Pasa el móvil al rival!</h2>
+    <p data-i18n="handoffDesc">Que no vea ni escuche el audio original. Su misión es escuchar el sonido al revés e intentar imitarlo.</p>
+    <button id="rivalReadyButton" type="button" data-i18n="rivalReady">🙋 ¡Soy el rival, estoy listo!</button>
   </div>
 </div>
 </body>
