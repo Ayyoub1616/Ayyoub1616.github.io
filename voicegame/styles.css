@@ -53,3 +53,10 @@ footer a:hover{text-decoration:underline}
 @media(max-width:540px){.page{padding:0 10px 12px}.toolbar{height:77px}.tool{width:45px;height:46px}.tool svg{width:30px;height:30px}.toolbar-right{gap:12px}.game{margin-top:7px}.tile{min-height:clamp(170px,25.2dvh,300px)}.tile-graphic{height:clamp(87px,15vw,126px);width:clamp(87px,15vw,126px)}.tile-text{font-size:clamp(25px,7.2vw,36px)}.tile-caption{font-size:12px;margin-top:9px}}
 @media(max-height:720px){.toolbar{height:62px}.game{margin-top:0}.tile{min-height:190px}.tile-graphic{width:94px;height:94px}.tile-text{font-size:27px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Explicit, accessible share action while keeping the three game tiles unchanged. */
+.share-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 13px;border:2px solid #222;border-radius:12px;background:#fff;color:#171717;font-size:13px;font-weight:750;cursor:pointer;transition:background .15s ease,transform .15s ease}
+.share-button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.share-button:hover{background:#dedede}
+.share-button:active{transform:scale(.96)}
+@media(max-width:540px){.share-button{min-height:42px;padding:8px 10px;font-size:12px;gap:5px}.share-button svg{width:19px;height:19px}.toolbar-right{gap:7px}}
