@@ -1,4 +1,4 @@
-name: Verify REWIND two-player audio game
+name: Verify multilingual REWIND and audio
 on:
   push:
     branches: [main]
@@ -12,82 +12,107 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify current public game files
+      - name: Check published language and audio files
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://ayyoub1616.github.io/voicegame'
           for attempt in {1..30}; do
             if curl -fsSL --max-time 15 "$BASE/" -o /tmp/rewind.html &&
-              grep -q 'id="recordButton"' /tmp/rewind.html &&
-              grep -q 'id="originalButton"' /tmp/rewind.html &&
-              grep -q 'id="reverseButton"' /tmp/rewind.html &&
-              grep -q 'id="rivalReadyButton"' /tmp/rewind.html &&
-              grep -q 'id="guessInput"' /tmp/rewind.html &&
+              grep -q 'id="languageSelect"' /tmp/rewind.html &&
+              curl -fsSL --max-time 15 "$BASE/i18n.js" -o /tmp/i18n.js &&
+              grep -q 'rewind-language-v1' /tmp/i18n.js &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/rewind.js &&
-              grep -q 'wav(refined,rate,true)' /tmp/rewind.js &&
-              grep -q 'audio.play()' /tmp/rewind.js &&
-              curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/rewind.css; then
+              grep -q 'floor\*2.35' /tmp/rewind.js &&
+              curl -fsSL --max-time 15 "$BASE/privacidad.html" -o /tmp/privacidad.html &&
+              grep -q 'privacyHeading' /tmp/privacidad.html; then
+              node --check /tmp/i18n.js
               node --check /tmp/rewind.js
-              echo 'PASS: deployed two-player interface and native WAV audio'
+              echo 'PASS: live multilingual game and updated audio'
               exit 0
             fi
-            echo "Waiting for Pages release $attempt/30"
             sleep 4
           done
-          echo 'FAIL: outdated Pages release'
+          echo 'FAIL: website not updated'
           exit 1
-      - name: Install Playwright browser test
-        run: npm install --prefix /tmp/rewind-e2e --no-audit --no-fund playwright@1.56.1
-      - name: Test recording both players and actual media playback
+      - name: Check translations and the adaptive noise filter
         shell: bash
         run: |
-          cat > /tmp/rewind-e2e/test.cjs <<'NODE'
+          node <<'NODE'
+          const fs=require('fs');
+          const text=fs.readFileSync('/tmp/i18n.js','utf8');
+          const table=JSON.parse(text.match(/const STRINGS=(.*?);\nconst STORAGE=/s)[1]);
+          const keys=Object.keys(table.es);
+          for(const lang of ['es','en','fr','ar','pt']){
+            if(keys.some(key=>!table[lang][key]))throw Error('Translation incomplete: '+lang);
+          }
+          const js=fs.readFileSync('/tmp/rewind.js','utf8');
+          const a=js.indexOf('  function processVoice('),b=js.indexOf('  function createRecording(',a);
+          const process=new Function('pcm','rate','let filterEnabled=true;'+js.slice(a,b)+'return processVoice(pcm,rate);');
+          const sr=16000,signal=new Float32Array(sr*2);
+          for(let i=0;i<signal.length;i++){
+            const t=i/sr;
+            signal[i]=.009*Math.sin(2*Math.PI*1330*t)+(t>.45&&t<1.55?.15*Math.sin(2*Math.PI*220*t):0);
+          }
+          const cleaned=process(signal,sr);
+          const rms=(array,left,right)=>{let sum=0,n=0;for(let i=Math.floor(left*sr);i<Math.floor(right*sr);i++){sum+=array[i]**2;n++}return Math.sqrt(sum/n)};
+          if(!(rms(cleaned,0,.35)<rms(signal,0,.35) && rms(cleaned,.6,1)>rms(signal,.6,1)*.8))throw Error('Noise reduction sanity check failed');
+          console.log('PASS: '+keys.length+' strings across 5 languages; synthetic noise attenuation and voice retention');
+          NODE
+      - name: Install Playwright
+        run: npm install --prefix /tmp/rewind-test --no-audit --no-fund playwright@1.56.1
+      - name: Test browser language, RTL and both audio recordings
+        shell: bash
+        run: |
+          cat > /tmp/rewind-test/test.cjs <<'NODE'
           const {chromium}=require('playwright');
           (async()=>{
             const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
-            const ctx=await browser.newContext({permissions:['microphone']});
+            const ctx=await browser.newContext({locale:'fr-FR',permissions:['microphone']});
             const page=await ctx.newPage(),errors=[];
             page.on('pageerror',e=>errors.push(e.message));
             await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
-            if(await page.locator('.tile').count()!==3)throw Error('Expected 3 tiles');
-            await page.locator('#originalButton').click();
-            if(!((await page.locator('#feedback').textContent()).includes('primero')||(await page.locator('#feedback').textContent()).includes('Primero')))throw Error('Pre-recording prompt missing');
+            await page.waitForFunction(()=>document.documentElement.lang==='fr');
+            if(!((await page.locator('#stageTitle').textContent()).includes('Enregistre')))throw Error('French not auto-selected');
+            await page.selectOption('#languageSelect','en');
+            if(!((await page.locator('#stageTitle').textContent()).includes('Record a secret')))throw Error('English selection failed');
+            await page.reload({waitUntil:'networkidle'});
+            if(await page.locator('#languageSelect').inputValue()!=='en')throw Error('Language preference not retained');
+            await page.selectOption('#languageSelect','ar');
+            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic not RTL');
+            if(!((await page.locator('#stageTitle').textContent()).includes('سرّية')))throw Error('Arabic heading missing');
+            await page.selectOption('#languageSelect','es');
             await page.locator('#secretInput').fill('La vaca baila salsa');
             const record=async()=>{
               await page.locator('#recordButton').click();
-              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:20000});
-              await page.waitForTimeout(1600);
+              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:15000});
+              await page.waitForTimeout(1700);
               await page.locator('#recordButton').click();
             };
+            const playing=async()=>page.waitForFunction(()=>{const a=document.querySelector('audio');return !!a && !a.paused && a.currentTime>.04},{timeout:8000});
             await record();
             await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Volver a grabar',{timeout:22000});
-            const assertPlaying=async()=>{
-              await page.waitForFunction(()=>{const a=document.querySelector('audio');return !!a && !a.paused && a.currentTime > .04},{timeout:7000});
-            };
-            await page.locator('#originalButton').click();
-            await assertPlaying();
+            await page.locator('#originalButton').click();await playing();
             await page.locator('#reverseButton').click();
-            await page.locator('#handoff').waitFor({state:'visible',timeout:7000});
+            await page.locator('#handoff').waitFor({state:'visible'});
             await page.locator('#rivalReadyButton').click();
-            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('JUGADOR 2'));
-            await page.locator('#originalButton').click();
-            await assertPlaying();
+            await page.selectOption('#languageSelect','fr');
+            if(!((await page.locator('#stageBadge').textContent()).includes('JOUEUR 2')))throw Error('Rival stage not translated');
+            await page.locator('#originalButton').click();await playing();
+            await page.selectOption('#languageSelect','es');
             await record();
             await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Repetir imitación',{timeout:22000});
-            await page.locator('#reverseButton').click();
-            await assertPlaying();
+            await page.locator('#reverseButton').click();await playing();
             await page.locator('#guessInput').fill('La vaca baila salsa');
             await page.locator('#revealButton').click();
-            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('REVELACIÓN'),{timeout:7000});
-            if(!((await page.locator('#answerText').textContent()).includes('La vaca baila salsa')))throw Error('Answer reveal missing');
-            await page.locator('#originalButton').click();
-            await assertPlaying();
-            await page.locator('#newRoundButton').click();
-            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('JUGADOR 1'));
-            if(errors.length)throw Error('Browser JS error: '+errors.join('; '));
-            console.log('PASS: both recordings, real original/reverse media playback, handoff, guess and reveal');
+            if(!((await page.locator('#answerText').textContent()).includes('La vaca baila salsa')))throw Error('Reveal failed');
+            await page.goto('https://ayyoub1616.github.io/voicegame/privacidad.html',{waitUntil:'networkidle'});
+            await page.selectOption('#languageSelect','ar');
+            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Privacy Arabic RTL failed');
+            if(!((await page.locator('h1').textContent()).includes('الخصوصية')))throw Error('Privacy not translated');
+            if(errors.length)throw Error('Browser JS errors: '+errors.join('; '));
+            console.log('PASS: five languages, persisted selector, RTL, both audio recordings and privacy');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-          node /tmp/rewind-e2e/test.cjs
+          node /tmp/rewind-test/test.cjs

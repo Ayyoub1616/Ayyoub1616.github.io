@@ -97,7 +97,7 @@
     const out=new Float32Array(filtered.length);
     const attack=Math.exp(-1/(rate*.005));
     const release=Math.exp(-1/(rate*.12));
-    let gain=1,peak=0;
+    let gain=.16,peak=0; // Silence starts attenuated; voice opens the gate within ~5 ms.
     for(let i=0;i<filtered.length;i++){
       const rms=energy[Math.min(count-1,Math.floor(i/frameSize))]||0;
       const relative=Math.min(1,rms/threshold);
