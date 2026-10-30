@@ -1,5 +1,4 @@
-name: Verify REWIND three-button game
-
+name: Verify REWIND two-player audio game
 on:
   push:
     branches: [main]
@@ -7,48 +6,43 @@ on:
       - 'voicegame/**'
       - '.github/workflows/test-voicegame.yml'
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  smoke:
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify published site and three simple buttons
+      - name: Verify current public game files
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://ayyoub1616.github.io/voicegame'
           for attempt in {1..30}; do
-            if curl -fsSL --max-time 15 "$BASE/" -o /tmp/voicegame.html &&
-              grep -q 'id="recordButton"' /tmp/voicegame.html &&
-              grep -q 'id="originalButton"' /tmp/voicegame.html &&
-              grep -q 'id="reverseButton"' /tmp/voicegame.html &&
-              ! grep -q 'id="shareTikTok"' /tmp/voicegame.html &&
-              ! grep -q 'id="score-board"' /tmp/voicegame.html &&
-              curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/voicegame.js &&
-              grep -q 'reverseBuffer' /tmp/voicegame.js &&
-              grep -q 'noiseSuppression' /tmp/voicegame.js &&
-              curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/voicegame.css &&
-              grep -q '#dc4e4e' /tmp/voicegame.css &&
-              grep -q '#aad56d' /tmp/voicegame.css &&
-              grep -q '#6ec2d4' /tmp/voicegame.css; then
-              node --check /tmp/voicegame.js
-              echo 'PASS: live three-button voice game'
+            if curl -fsSL --max-time 15 "$BASE/" -o /tmp/rewind.html &&
+              grep -q 'id="recordButton"' /tmp/rewind.html &&
+              grep -q 'id="originalButton"' /tmp/rewind.html &&
+              grep -q 'id="reverseButton"' /tmp/rewind.html &&
+              grep -q 'id="rivalReadyButton"' /tmp/rewind.html &&
+              grep -q 'id="guessInput"' /tmp/rewind.html &&
+              curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/rewind.js &&
+              grep -q 'wav(refined,rate,true)' /tmp/rewind.js &&
+              grep -q 'audio.play()' /tmp/rewind.js &&
+              curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/rewind.css; then
+              node --check /tmp/rewind.js
+              echo 'PASS: deployed two-player interface and native WAV audio'
               exit 0
             fi
-            echo "Waiting for Pages $attempt/30"
+            echo "Waiting for Pages release $attempt/30"
             sleep 4
           done
-          echo "FAIL: new site version not available"
+          echo 'FAIL: outdated Pages release'
           exit 1
-      - name: Install browser testing
-        run: npm install --prefix /tmp/rewind-test --no-audit --no-fund playwright@1.56.1
-      - name: Test recording original and reversed audio
+      - name: Install Playwright browser test
+        run: npm install --prefix /tmp/rewind-e2e --no-audit --no-fund playwright@1.56.1
+      - name: Test recording both players and actual media playback
         shell: bash
         run: |
-          cat > /tmp/rewind-test/test.cjs <<'NODE'
+          cat > /tmp/rewind-e2e/test.cjs <<'NODE'
           const {chromium}=require('playwright');
           (async()=>{
             const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
@@ -56,27 +50,44 @@ jobs:
             const page=await ctx.newPage(),errors=[];
             page.on('pageerror',e=>errors.push(e.message));
             await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
-            if(await page.locator('.tile').count()!==3)throw Error('Expected exactly three big buttons');
+            if(await page.locator('.tile').count()!==3)throw Error('Expected 3 tiles');
             await page.locator('#originalButton').click();
-            if(!((await page.locator('#feedback').textContent()).includes('Primero')))throw Error('Expected prompt before recording');
-            await page.locator('#recordButton').click();
-            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:15000});
-            await page.waitForTimeout(1800);
-            await page.locator('#recordButton').click();
-            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Volver a grabar',{timeout:20000});
+            if(!((await page.locator('#feedback').textContent()).includes('primero')||(await page.locator('#feedback').textContent()).includes('Primero')))throw Error('Pre-recording prompt missing');
+            await page.locator('#secretInput').fill('La vaca baila salsa');
+            const record=async()=>{
+              await page.locator('#recordButton').click();
+              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:20000});
+              await page.waitForTimeout(1600);
+              await page.locator('#recordButton').click();
+            };
+            await record();
+            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Volver a grabar',{timeout:22000});
+            const assertPlaying=async()=>{
+              await page.waitForFunction(()=>{const a=document.querySelector('audio');return !!a && !a.paused && a.currentTime > .04},{timeout:7000});
+            };
             await page.locator('#originalButton').click();
-            await page.waitForFunction(()=>document.querySelector('#originalButton').getAttribute('aria-pressed')==='true',{timeout:8000});
+            await assertPlaying();
             await page.locator('#reverseButton').click();
-            await page.waitForFunction(()=>document.querySelector('#reverseButton').getAttribute('aria-pressed')==='true',{timeout:8000});
-            await page.locator('#filterButton').click();
-            if(!await page.locator('#filterPanel').isVisible())throw Error('Settings did not open');
-            await page.locator('#filterToggle').uncheck();
-            if(await page.locator('#reverseButton').getAttribute('aria-pressed')==='true')throw Error('Playback should stop on filter change');
-            await page.locator('#filterButton').click();
-            if(await page.locator('#filterPanel').isVisible())throw Error('Settings did not close');
-            if(errors.length)throw Error('Browser JS errors: '+errors.join('; '));
-            console.log('PASS: 3 buttons, microphone capture, original, reverse, settings and filtering');
+            await page.locator('#handoff').waitFor({state:'visible',timeout:7000});
+            await page.locator('#rivalReadyButton').click();
+            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('JUGADOR 2'));
+            await page.locator('#originalButton').click();
+            await assertPlaying();
+            await record();
+            await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Repetir imitación',{timeout:22000});
+            await page.locator('#reverseButton').click();
+            await assertPlaying();
+            await page.locator('#guessInput').fill('La vaca baila salsa');
+            await page.locator('#revealButton').click();
+            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('REVELACIÓN'),{timeout:7000});
+            if(!((await page.locator('#answerText').textContent()).includes('La vaca baila salsa')))throw Error('Answer reveal missing');
+            await page.locator('#originalButton').click();
+            await assertPlaying();
+            await page.locator('#newRoundButton').click();
+            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('JUGADOR 1'));
+            if(errors.length)throw Error('Browser JS error: '+errors.join('; '));
+            console.log('PASS: both recordings, real original/reverse media playback, handoff, guess and reveal');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-          node /tmp/rewind-test/test.cjs
+          node /tmp/rewind-e2e/test.cjs

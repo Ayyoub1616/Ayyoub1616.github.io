@@ -1,13 +1,13 @@
 {
-  "name": "REWIND! — Tu voz al revés",
+  "name": "REWIND! — El reto de hablar al revés",
   "short_name": "REWIND!",
-  "description": "Tres botones: graba tu voz, escucha original o reversa.",
+  "description": "El juego de dos: graba un secreto, tu rival escucha en reversa, lo imita y adivina la frase.",
   "lang": "es",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#eeeeee",
-  "theme_color": "#eeeeee",
+  "background_color": "#ededed",
+  "theme_color": "#ededed",
   "icons": [
     {
       "src": "./assets/icon.svg",
