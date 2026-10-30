@@ -1,4 +1,4 @@
-name: Verify REWIND mini-game collection
+name: Verify REWIND varied couple and group games
 on:
   push:
     branches: [main]
@@ -12,154 +12,158 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Check deployed game collection
+      - name: Check deployed release and complete 14-game catalogue
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://ayyoub1616.github.io/voicegame'
-          for attempt in {1..30}; do
-            if curl -fsSL --max-time 15 "$BASE/" -o /tmp/index.html &&
-              grep -q 'id="gameSelect"' /tmp/index.html &&
-              grep -q 'id="chainPlayers"' /tmp/index.html &&
-              grep -q 'id="winnerPanel"' /tmp/index.html &&
+          for attempt in {1..35}; do
+            if curl -fsSL --max-time 15 "$BASE/" -o /tmp/rewind.html &&
+              grep -q 'id="partyBoard"' /tmp/rewind.html &&
+              grep -q 'id="playerNamesFields"' /tmp/rewind.html &&
               curl -fsSL --max-time 15 "$BASE/games.js" -o /tmp/games.js &&
-              grep -q '"id":"chain"' /tmp/games.js &&
-              grep -q '"id":"duel"' /tmp/games.js &&
-              grep -q 'const VISUALS=' /tmp/games.js &&
+              grep -q '"id":"mostlikely"' /tmp/games.js &&
+              grep -q '"id":"twotruths"' /tmp/games.js &&
+              ! grep -q '"id":"laughduel"' /tmp/games.js &&
               curl -fsSL --max-time 15 "$BASE/app.js" -o /tmp/app.js &&
-              grep -q 'function nextInChain' /tmp/app.js &&
-              grep -q 'linkedMode' /tmp/app.js &&
-              curl -fsSL --max-time 15 "$BASE/i18n.js" -o /tmp/i18n.js &&
-              curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/styles.css; then
-              for code in /tmp/app.js /tmp/games.js /tmp/i18n.js; do node --check "$code"; done
-              echo 'PASS: 15-game collection public and valid'
+              grep -q 'function renderParty' /tmp/app.js &&
+              grep -q 'function startPartyTimer' /tmp/app.js &&
+              curl -fsSL --max-time 15 "$BASE/styles.css" -o /tmp/styles.css &&
+              grep -q '.party-question' /tmp/styles.css &&
+              curl -fsSL --max-time 15 "$BASE/i18n.js" -o /tmp/i18n.js; then
+              for code in /tmp/games.js /tmp/app.js /tmp/i18n.js; do node --check "$code"; done
+              echo 'PASS: Published 14-game version is live'
               exit 0
             fi
-            echo "Waiting for new release $attempt/30"
+            echo "Waiting for Pages release $attempt/35"
             sleep 4
           done
-          echo 'FAIL: Site was not deployed'
+          echo 'FAIL: expected release not available'
           exit 1
-      - name: Validate all 15 game definitions
+      - name: Validate games, localizations, and accessibility references
         shell: bash
         run: |
           node <<'NODE'
-          const fs=require('fs'),s=fs.readFileSync('/tmp/games.js','utf8');
+          const fs=require('fs'),s=fs.readFileSync('/tmp/games.js','utf8'),h=fs.readFileSync('/tmp/rewind.html','utf8');
           const games=JSON.parse(s.match(/const GAMES=(.*?);\n const META=/s)[1]);
           const meta=JSON.parse(s.match(/const META=(.*?);\n const VISUALS=/s)[1]);
-          const visuals=JSON.parse(s.match(/const VISUALS=(.*?);\n const VERBS=/s)[1]);
+          const visuals=JSON.parse(s.match(/const VISUALS=(.*?);\n const ANSWERS=/s)[1]);
           const verbs=JSON.parse(s.match(/const VERBS=(.*?);\n const locale=/s)[1]);
-          if(new Set(Object.values(visuals).map(v=>v.colors.join(','))).size!==15)throw Error('Game palettes are not unique');
-          for(const game of games)for(const lang of ['es','en','fr','ar','pt'])for(const word of visuals[game.id].steps)if(!verbs[lang][word])throw Error('Missing themed step translation '+game.id+'/'+lang);
-          if(games.length!==15)throw Error('Expected 15 games, got '+games.length);
-          for(const g of games)for(const l of ['es','en','fr','ar','pt']){
-            if(g[l]?.length!==3||g[l][2].length<3)throw Error('Missing '+g.id+' '+l);
+          if(games.length!==14)throw Error('Expected 14 games');
+          if(games.filter(g=>g.kind==='party').length!==11)throw Error('Expected 11 non-audio games');
+          if(new Set(games.map(g=>g.id)).size!==14)throw Error('Duplicate game IDs');
+          for(const g of games){
+            if(!visuals[g.id])throw Error('No theme '+g.id);
+            for(const lang of ['es','en','fr','ar','pt']){
+              if(g[lang]?.[2]?.length!==4)throw Error('No prompts '+g.id+' '+lang);
+              if(visuals[g.id].steps.some(step=>!verbs[lang][step]))throw Error('Untranslated visual '+g.id+' '+lang);
+            }
           }
-          for(const l of ['es','en','fr','ar','pt'])if(!meta[l]?.passNext||!meta[l]?.duelReveal)throw Error('Incomplete '+l);
-          console.log('PASS: all modes and prompt suggestions translated into five languages');
+          for(const lang of ['es','en','fr','ar','pt'])
+            for(const key of ['newCard','skipTurn','timerStart','truth','dare','correct','namesTitle','passTo'])
+              if(!meta[lang][key])throw Error('Missing '+key+'/'+lang);
+          const ids=[...h.matchAll(/id="([^"]+)"/g)].map(x=>x[1]);
+          if(ids.length!==new Set(ids).size)throw Error('Duplicate DOM IDs');
+          console.log('PASS: 14 games, five languages, all game styles, names and prompts');
           NODE
       - name: Install Playwright
         run: npm install --prefix /tmp/rewind-e2e --no-audit --no-fund playwright@1.56.1
-      - name: Test classic, voice chain, duel, and automatic locale
+      - name: Test party modes without microphone, names, timers and audio turns
         shell: bash
         run: |
           cat > /tmp/rewind-e2e/test.cjs <<'NODE'
           const {chromium}=require('playwright');
           (async()=>{
             const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
-            const context=await browser.newContext({permissions:['microphone'],locale:'fr-FR'});
-            const page=await context.newPage();const errors=[];
+            const ctx=await browser.newContext({locale:'fr-FR',permissions:['microphone'],viewport:{width:390,height:844}});
+            const page=await ctx.newPage(),errors=[];
             page.on('pageerror',e=>errors.push(e.message));
-            page.on('dialog',dialog=>dialog.accept());
-            await page.goto('https://ayyoub1616.github.io/voicegame/?game=chain',{waitUntil:'networkidle',timeout:30000});
-            if(await page.locator('#gameSelect').inputValue()!=='chain')throw Error('Direct game link failed');
-            if(await page.locator('.tile').count()!==3)throw Error('Missing simple three-button interface');
-            if(!((await page.locator('#gameDescription').textContent()).includes('amis')))throw Error('French translation not applied');
+            page.on('dialog',d=>d.accept());
+            await page.goto('https://ayyoub1616.github.io/voicegame/?game=mostlikely',{waitUntil:'networkidle',timeout:30000});
+            await page.waitForFunction(()=>document.documentElement.lang==='fr');
+            if(!await page.locator('#partyBoard').isVisible())throw Error('Party cards missing');
+            if(await page.locator('#gameSelect option').count()!==14)throw Error('Invalid game count');
             await page.selectOption('#languageSelect','es');
             await page.selectOption('#chainPlayers','3');
-            const capture=async()=>{
-              await page.locator('#recordButton').click();
-              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:18000});
-              await page.waitForTimeout(1400);
-              await page.locator('#recordButton').click();
-              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent!=='Detener grabación'&&!document.querySelector('#recordButton').disabled,{timeout:20000});
-            };
-            const checkAudio=async()=>page.waitForFunction(()=>{const a=document.querySelector('audio');return a&&!a.paused&&a.currentTime>.04},{timeout:7000});
-            await capture();
+            await page.locator('#playerNamesPanel').evaluate(el=>el.open=true);
+            await page.locator('.player-name-field input').nth(0).fill('Ana');
+            await page.locator('.player-name-field input').nth(1).fill('Sara');
+            await page.locator('.player-name-field input').nth(2).fill('Luis');
+            if(!((await page.locator('#partyPlayer').textContent()).includes('Ana')))throw Error('Active name not displayed');
+            const oldQuestion=await page.locator('#partyQuestion').textContent();
+            await page.locator('#recordButton').click();
+            if((await page.locator('#partyQuestion').textContent())===oldQuestion)throw Error('New card did not change');
+            await page.locator('#originalButton').click();
+            if(!((await page.locator('#partyQuestion').textContent()).includes('oculta')))throw Error('Card did not hide');
             await page.locator('#reverseButton').click();
-            await page.locator('#handoff').waitFor({state:'visible'});
+            if(!((await page.locator('#partyPlayer').textContent()).includes('Sara')))throw Error('Party turn name missing');
+            await page.selectOption('#gameSelect','truthdare');
+            const truth=await page.locator('#partyQuestion').textContent();
+            await page.locator('#originalButton').click();
+            if((await page.locator('#partyQuestion').textContent())===truth)throw Error('Truth/dare did not toggle');
+            await page.selectOption('#gameSelect','emojiquiz');
+            await page.locator('#originalButton').click();
+            if(!await page.locator('#partyAnswer').isVisible())throw Error('Emoji answer did not reveal');
+            await page.selectOption('#gameSelect','fivewords');
+            if(!await page.locator('#partyTimerPanel').isVisible())throw Error('Timer not visible');
+            await page.locator('#originalButton').click();
+            await page.waitForTimeout(1300);
+            const remaining=Number(await page.locator('#partyTimerValue').textContent());
+            if(!(remaining<=4&&remaining>=3))throw Error('5-second countdown failed: '+remaining);
+            await page.locator('#originalButton').click();
+            await page.selectOption('#gameSelect','knowme');
+            const before=await page.locator('#partyScore').textContent();
+            await page.locator('#originalButton').click();
+            if((await page.locator('#partyScore').textContent())===before)throw Error('Couple score not updated');
+            for(const game of ['wouldyou','never','charades','taboo','story','twotruths']){
+              await page.selectOption('#gameSelect',game);
+              if(!await page.locator('#partyBoard').isVisible())throw Error('Party game missing '+game);
+              if(await page.locator('body').getAttribute('data-game')!==game)throw Error('Theme missing '+game);
+              if(await page.locator('#recordButton').isDisabled())throw Error('Game disabled '+game);
+              const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+2);
+              if(overflow)throw Error('Mobile horizontal overflow '+game);
+            }
+            await page.selectOption('#gameSelect','chain');
+            await page.selectOption('#chainPlayers','3');
+            await page.locator('#playerNamesPanel').evaluate(el=>el.open=true);
+            await page.locator('.player-name-field input').nth(0).fill('Ana');
+            await page.locator('.player-name-field input').nth(1).fill('Sara');
+            await page.locator('.player-name-field input').nth(2).fill('Luis');
+            const record=async()=>{
+              await page.locator('#recordButton').click();
+              await page.waitForFunction(()=>document.querySelector('#recordLabel').textContent==='Detener grabación',{timeout:16000});
+              await page.waitForTimeout(1450);
+              await page.locator('#recordButton').click();
+              await page.waitForFunction(()=>!document.querySelector('#recordButton').disabled,{timeout:19000});
+            };
+            const playing=async()=>page.waitForFunction(()=>{const a=document.querySelector('audio');return a&&!a.paused&&a.currentTime>.04},{timeout:8000});
+            await record();
+            await page.locator('#reverseButton').click();
+            if(!((await page.locator('#handoffTitle').textContent()).includes('Sara')))throw Error('Named handoff missing');
             await page.locator('#rivalReadyButton').click();
-            await page.locator('#originalButton').click();await checkAudio();
-            await capture();
+            await page.locator('#originalButton').click();await playing();
+            await record();
             await page.locator('#nextChainButton').click();
-            await page.locator('#handoff').waitFor({state:'visible'});
             await page.locator('#rivalReadyButton').click();
-            if(!((await page.locator('#stageBadge').textContent()).includes('3 / 3')))throw Error('Third player label wrong');
-            await page.locator('#originalButton').click();await checkAudio();
-            await capture();
+            if(!((await page.locator('#stageBadge').textContent()).includes('Luis')))throw Error('Third player name missing');
+            await record();
             await page.locator('#revealButton').click();
-            await page.waitForFunction(()=>document.querySelector('#stageBadge').textContent.includes('REVELACIÓN'));
-            if(await page.locator('.chain-row').count()!==3)throw Error('Missing 3-player replay timeline');
+            if(await page.locator('.chain-row').count()!==3)throw Error('Chain recordings missing');
+            if(!((await page.locator('.chain-row').last().textContent()).includes('Luis')))throw Error('History names missing');
             await page.locator('#newRoundButton').click();
             await page.selectOption('#gameSelect','duel');
-            await page.waitForFunction(()=>document.querySelector('#gameSelect').value==='duel');
-            await capture();
+            await record();
             await page.locator('#reverseButton').click();
             await page.locator('#rivalReadyButton').click();
-            await page.locator('#originalButton').click();await checkAudio();
-            await capture();
+            await record();
             await page.locator('#revealButton').click();
-            if(!await page.locator('#winnerPanel').isVisible())throw Error('Duel vote unavailable');
             await page.locator('#winnerTwo').click();
-            if(!((await page.locator('#winnerResult').textContent()).includes('jugador 2')))throw Error('Duel winner not recorded');
-            await page.selectOption('#gameSelect','speed');
-            if(await page.locator('#gameSelect').inputValue()!=='speed')throw Error('Speed game selection failed');
+            if(!((await page.locator('#winnerResult').textContent()).includes('Sara')))throw Error('Duel result name missing');
             await page.selectOption('#languageSelect','ar');
-            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic RTL not active');
-            await page.reload({waitUntil:'networkidle'});
-            if(await page.locator('#languageSelect').inputValue()!=='ar')throw Error('Manual language preference not saved');
-            if(errors.length)throw Error('Page errors '+errors.join('; '));
-            console.log('PASS: 3-player chain, previous audio playback, reveal timeline, duel vote, speed mode, Arabic RTL, shared game link');
+            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic RTL failed');
+            if(errors.length)throw Error('Browser errors '+errors.join('; '));
+            console.log('PASS: 11 card games, five-second timer, reveal, scoring, names, audio chain and duel on mobile');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
           node /tmp/rewind-e2e/test.cjs
-
-      - name: Test 15 different visual game themes
-        shell: bash
-        run: |
-          cat > /tmp/rewind-e2e/themes.cjs <<'NODE'
-          const {chromium}=require('playwright');
-          (async()=>{
-            const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
-            const page=await browser.newPage({viewport:{width:390,height:844},locale:'es-ES'});
-            const errors=[];page.on('pageerror',e=>errors.push(e.message));
-            await page.goto('https://ayyoub1616.github.io/voicegame/',{waitUntil:'networkidle',timeout:30000});
-            const games=['reverse','chain','duel','couples','compliments','emoji','animals','accents','laugh','twister','whisper','speed','sound','beat','robot'];
-            const themes=new Set();
-            for(const game of games){
-              await page.selectOption('#gameSelect',game);
-              if(await page.locator('body').getAttribute('data-game')!==game)throw Error('Wrong active game '+game);
-              const color=await page.locator('#recordButton').evaluate(el=>getComputedStyle(el).backgroundColor);
-              if(themes.has(color))throw Error('Duplicate tile color for '+game);
-              themes.add(color);
-              const emoji=await page.locator('#sceneEmoji').textContent();
-              const title=await page.locator('#sceneTitle').textContent();
-              if(!emoji?.trim()||!title?.trim())throw Error('Missing game identity '+game);
-              const steps=await page.locator('#sceneSteps>span:not(.step-arrow)').allTextContents();
-              if(steps.length!==3||steps.some(x=>!x.trim()))throw Error('Missing game-specific instructions '+game);
-              if(game==='chain'&&!await page.locator('#chainProgress').isVisible())throw Error('Chain turn display hidden');
-              if(game==='duel'&&!await page.locator('#duelArena').isVisible())throw Error('Duel arena hidden');
-              if(game==='speed'&&!await page.locator('#speedPanel').isVisible())throw Error('Speed countdown hidden');
-              const noOverflow=await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2);
-              if(!noOverflow)throw Error('Horizontal overflow on mobile in '+game);
-            }
-            await page.selectOption('#languageSelect','ar');
-            if(await page.locator('html').getAttribute('dir')!=='rtl')throw Error('Arabic RTL missing');
-            if(!((await page.locator('#stepOne').textContent()).trim().length>2))throw Error('Localized steps missing');
-            if(errors.length)throw Error('Browser errors: '+errors.join('; '));
-            console.log('PASS: 15 unique layouts/colors, chain, duel, speed, Arabic and mobile viewport');
-            await browser.close();
-          })().catch(e=>{console.error(e);process.exit(1)});
-          NODE
-          node /tmp/rewind-e2e/themes.cjs

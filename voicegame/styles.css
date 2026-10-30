@@ -118,3 +118,51 @@ body[data-game="emoji"] .mode-scene:after,body[data-game="animals"] .mode-scene:
  .chain-player-icon{font-size:20px}.chain-player{font-size:9px}
 }
 @media(prefers-reduced-motion:reduce){.scene-emoji,.scene-floater{animation:none!important}}
+
+/* Optional participant names — compact, mobile-first, no sign-up. */
+.player-names{margin:0 0 12px;background:#fff;border:1px solid color-mix(in srgb,var(--g-primary,#6b4ba2) 23%,#ddd);border-radius:15px;box-shadow:0 5px 18px #0000000b;overflow:hidden}
+.player-names summary{padding:13px 14px;font-size:13px;font-weight:900;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.player-names summary::-webkit-details-marker{display:none}
+.player-names summary:after{content:"⌄";font-weight:900;color:var(--g-primary,#694bac);font-size:20px;transition:transform .18s ease}
+.player-names[open] summary:after{transform:rotate(180deg)}
+.player-names summary span{font-weight:500;font-size:11px;color:#666;margin-inline-start:auto}
+.player-names p{font-size:12px;color:#626262;margin:0 14px 10px;line-height:1.5}
+.player-names-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 13px 14px}
+.player-name-field{min-width:0;display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;border:1px solid #dedee4;background:#faf9fd}
+.player-name-field span{font-size:19px;flex:none}
+.player-name-field input{min-width:0;width:100%;height:31px;border:0;outline-offset:2px;background:transparent;font-size:13px;font-weight:700;color:#24222b}
+.player-name-field input::placeholder{font-weight:500;color:#85818f}
+.player-name-field:focus-within{box-shadow:0 0 0 2px color-mix(in srgb,var(--g-primary,#694bac) 40%,transparent);border-color:var(--g-primary,#694bac)}
+.chain-player>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding-inline:2px}
+.duel-person strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;min-width:0}
+.handoff h2{overflow-wrap:anywhere}
+[dir="rtl"] .player-names-fields,[dir="rtl"] .player-names summary{text-align:right}
+@media(max-width:420px){.player-name-field{gap:5px;padding:5px}.player-name-field input{font-size:12px}.player-name-field span{font-size:16px}.player-names-fields{gap:7px}}
+
+/* Non-audio party cards: a distinct playful board without extra complexity. */
+.party-board{margin:1px 0 12px;text-align:center;border-radius:20px;padding:18px 16px 15px;
+ background:linear-gradient(160deg,#fff,#fbf6f0);border:2px solid color-mix(in srgb,var(--g-primary,#785ac0) 23%,#fff);
+ box-shadow:0 9px 24px #2023330e;position:relative;overflow:hidden}
+.party-board:before{content:"✦";position:absolute;right:15px;top:11px;font-size:35px;color:color-mix(in srgb,var(--g-primary,#a16ccc) 30%,transparent);pointer-events:none}
+.party-player{font-size:12px;font-weight:850;color:var(--g-primary,#7752ac);background:color-mix(in srgb,var(--g-surface,#f1e9ff) 70%,#fff);padding:8px 15px;border-radius:999px;display:inline-block;max-width:100%;overflow-wrap:anywhere}
+.party-question{font-family:inherit;font-weight:900;font-size:clamp(20px,5.5vw,32px);line-height:1.35;letter-spacing:-.025em;color:#1f2130;padding:20px 8px 12px;overflow-wrap:anywhere;min-height:93px;display:grid;place-items:center}
+.party-question.is-hidden{font-size:18px;color:#89839b}
+.party-answer{margin:5px auto;padding:13px 14px;border-radius:12px;background:#d9f5e8;color:#145a3b;font-size:17px;font-weight:850}
+.party-directions{font-size:12px;line-height:1.5;color:#777;margin:12px auto 0;max-width:490px}
+.party-timer{margin:8px auto 0;display:flex;align-items:center;justify-content:center;gap:12px;max-width:360px;padding:11px;background:#fff5ea;border-radius:13px}
+.party-timer>strong{font-size:39px;font-variant-numeric:tabular-nums;color:var(--g-primary,#c65749);width:55px;text-align:center}
+.party-timer-track{height:13px;flex:1;background:#dedee6;border-radius:99px;overflow:hidden}
+.party-timer-track span{height:100%;display:block;background:linear-gradient(90deg,#62d0bb,#ffb65e,#fa6c73);border-radius:99px;transition:width .09s linear;width:100%}
+.party-timer.time-almost-up{background:#ffe5e5}.party-timer.time-almost-up>strong{color:#ce3333}
+.party-score{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.party-score>span{display:inline-block;border:1px solid #edcf78;background:#fff1bc;border-radius:11px;padding:9px 12px;font-size:13px;font-weight:850;color:#443a1d}
+body[data-game="never"] .party-board{background:linear-gradient(160deg,#fff,#eee9ff)}
+body[data-game="truthdare"] .party-board{background:linear-gradient(155deg,#fff,#fff0f5)}
+body[data-game="charades"] .party-board{background:linear-gradient(160deg,#fff,#e9fbf4)}
+body[data-game="fivewords"] .party-board{background:linear-gradient(160deg,#fff,#fff0db)}
+body[data-game="taboo"] .party-board{background:linear-gradient(155deg,#fff,#ffeee8)}
+body[data-game="emojiquiz"] .party-board{background:linear-gradient(160deg,#fff,#f0eaff)}
+body[data-game="knowme"] .party-board{background:linear-gradient(155deg,#fff,#fff0f7)}
+body[data-game="story"] .party-board{background:linear-gradient(160deg,#fff,#ebfaed)}
+body[data-game="twotruths"] .party-board{background:linear-gradient(160deg,#fff,#eef3ff)}
+@media(max-width:540px){.party-board{padding:13px 12px 12px}.party-question{padding:15px 5px 9px;min-height:75px;font-size:clamp(20px,5.6vw,27px)}.party-timer>strong{font-size:33px}.party-player{font-size:11px}}

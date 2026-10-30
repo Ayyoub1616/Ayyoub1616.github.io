@@ -48,9 +48,14 @@
       <p id="gameDescription" class="game-description">Escucha al revés, imita y descubre qué se dijo.</p>
       <div id="chainControls" class="chain-controls" hidden>
         <label for="chainPlayers" id="chainPlayersLabel">👥 Jugadores</label>
-        <select id="chainPlayers"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select>
+        <select id="chainPlayers"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select>
       </div>
     </section>
+    <details id="playerNamesPanel" class="player-names" aria-label="Nombres de jugadores">
+      <summary id="playerNamesSummary">👥 Nombres de jugadores <span>opcional ✏️</span></summary>
+      <p id="playerNamesInfo">Escribe los nombres y el juego indicará a quién le toca. No necesitas cuenta.</p>
+      <div id="playerNamesFields" class="player-names-fields"></div>
+    </details>
     <section class="mode-scene" id="modeScene" aria-label="Estilo del minijuego">
       <div class="scene-top">
         <span id="sceneCategory" class="scene-category">🎉 Amigos</span>
@@ -78,6 +83,17 @@
       </div>
       <div id="speedPanel" class="speed-panel" hidden><span id="speedTitle">⚡ 5 s</span><div class="speed-track"><span id="speedFill"></span></div><strong id="speedRemaining">05</strong></div>
     </div>
+    <section id="partyBoard" class="party-board" hidden aria-label="Reto para jugar sin grabación">
+      <div id="partyPlayer" class="party-player">🎯 Turno actual</div>
+      <div id="partyQuestion" class="party-question">🎲 Elige una carta para empezar</div>
+      <p id="partyAnswer" class="party-answer" hidden></p>
+      <div id="partyTimerPanel" class="party-timer" hidden>
+        <strong id="partyTimerValue">30</strong>
+        <div class="party-timer-track"><span id="partyTimerFill"></span></div>
+      </div>
+      <div id="partyScore" class="party-score" hidden></div>
+      <p id="partyDirections" class="party-directions">Elige una carta, sigue el reto y pasa el turno.</p>
+    </section>
     <section class="prompt-box" id="promptBox">
       <div class="prompt-copy"><span id="promptLabel">💡 IDEA PARA GRABAR</span><strong id="promptText">La pizza ha llegado</strong></div>
       <button id="shufflePrompt" class="prompt-shuffle" type="button" aria-label="Otra idea">🎲</button>

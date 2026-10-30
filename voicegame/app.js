@@ -19,7 +19,12 @@
   const linkedMode=new URLSearchParams(location.search).get('game');
   let modeId=G.all.some(g=>g.id===linkedMode)?linkedMode:G.all.some(g=>g.id===savedMode)?savedMode:'reverse';
   let promptIndex=0,chainIndex=1,chainPlayers=4,chainRecordings=[],winner='';
-  const mode=()=>G.get(modeId),chainMode=()=>mode().kind==='chain',duelMode=()=>mode().kind==='duel';
+  // Player names are optional, kept only in this page's memory, and not uploaded.
+  const playerNames=Array(6).fill('');
+  const mode=()=>G.get(modeId),chainMode=()=>mode().kind==='chain',duelMode=()=>mode().kind==='duel',partyMode=()=>mode().kind==='party';
+  let partyIndex=0,partyPromptIndex=0,partyHidden=false,partyReveal=false,partyDare=false,partyRemaining=0,partyTimerId=null;
+  const partyScores=Array(6).fill(0);
+  const participantCount=()=>chainMode()?chainPlayers:partyMode()&&mode().group==='groups'?chainPlayers:2;
   const timeLimit=()=>mode().limit||15;
   let stage='host', recording=false, processing=false, context=null, micStream=null, media=null;
   let captureSource=null, processor=null, silentGain=null, pcmChunks=[],encodedChunks=[],captureRate=44100,clockId=null,begin=0;
@@ -303,6 +308,7 @@
     render();say('revealDone');
   }
   function resetRound(){
+    stopPartyTimer();
     stopPlaying();freeRecording(host);freeRecording(rival);
     for(const rec of chainRecordings)if(rec!==host&&rec!==rival)freeRecording(rec);
     host=null;rival=null;chainRecordings=[];chainIndex=1;winner='';pcmChunks=[];encodedChunks=[];
@@ -337,6 +343,9 @@
     if((host||rival)&&!window.confirm(G.msg('resetConfirm'))){$('gameSelect').value=modeId;return;}
     resetRound();
     modeId=next;promptIndex=0;
+    if(chainMode()&&chainPlayers<3)chainPlayers=3;
+    resetParty();
+    if(chainMode()||partyMode())$('playerNamesPanel').open=true;
     try{localStorage.setItem('rewind-game-mode',modeId)}catch(_){}
     render();
   }
@@ -348,13 +357,52 @@
     stage='handoff';
     render();
   }
+  function participantName(index){
+    return playerNames[index]?.trim()||G.msg('nameLabel',{value:index+1});
+  }
+  function hasName(index){return !!playerNames[index]?.trim()}
+  function activePerson(){
+    return partyMode()?partyIndex:stage==='host'?0:stage==='rival'||stage==='handoff'?chainMode()?chainIndex:1:-1;
+  }
+  function renderPlayerNames(){
+    const count=participantCount(),wrap=$('playerNamesFields');
+    $('playerNamesSummary').firstChild.textContent=G.msg('namesTitle')+' ';
+    $('playerNamesSummary').querySelector('span').textContent=G.msg('namesOptional');
+    $('playerNamesInfo').textContent=G.msg('namesInfo');
+    if(wrap.children.length!==count){
+      wrap.replaceChildren();
+      for(let index=0;index<count;index++){
+        const label=document.createElement('label');
+        label.className='player-name-field';
+        const icon=document.createElement('span');
+        icon.textContent=index===0?'🎙️':index===1?'🎧':'👤';
+        icon.setAttribute('aria-hidden','true');
+        const input=document.createElement('input');
+        input.type='text';input.maxLength=22;input.autocomplete='off';
+        input.value=playerNames[index]||'';
+        input.dataset.index=String(index);
+        input.addEventListener('input',e=>{
+          const name=e.target.value.replace(/[\r\n]/g,'').slice(0,22);
+          playerNames[index]=name;
+          // Do not redraw input controls while the user is typing.
+          render();
+        });
+        label.append(icon,input);wrap.append(label);
+      }
+    }
+    [...wrap.querySelectorAll('input')].forEach((input,index)=>{
+      const label=G.msg('namePlaceholder',{value:index+1});
+      input.placeholder=label;input.setAttribute('aria-label',label);
+      input.disabled=recording||processing||pending;
+    });
+  }
   function renderHistory(){
     const list=$('chainHistory');list.replaceChildren();
     if(!chainMode()||stage!=='reveal')return;
     chainRecordings.forEach((record,i)=>{
       if(!record)return;
       const row=document.createElement('div');row.className='chain-row';
-      const title=document.createElement('span');title.className='chain-row-label';title.textContent=G.msg('chainVoice',{value:i+1});
+      const title=document.createElement('span');title.className='chain-row-label';title.textContent=G.msg('chainVoiceNamed',{value:participantName(i)});
       const actions=document.createElement('div');actions.className='chain-row-actions';
       for(const [side,label] of [['normal','chainOriginal'],['reverse','chainReverse']]){
         const button=document.createElement('button');button.type='button';button.textContent=G.msg(label);
@@ -367,7 +415,7 @@
   function chooseWinner(choice){
     if(!duelMode()||stage!=='reveal')return;
     winner=choice;
-    $('winnerResult').textContent=G.msg(choice==='one'?'winnerOne':choice==='two'?'winnerTwo':'winnerTie');
+    $('winnerResult').textContent=choice==='tie'?G.msg('winnerTie'):G.msg('resultNamed',{value:participantName(choice==='one'?0:1)});
   }
   function iconFor(el,type){el.innerHTML=icons[type];}
   function setTile(which,icon,label,detail,active=false){
@@ -389,7 +437,7 @@
       document.body.style.setProperty(name,value);
     }
     $('sceneCategory').textContent=G.msg(mode().group);
-    $('scenePlayers').textContent=chainMode()?'👥 '+chainPlayers:'👥 2';
+    $('scenePlayers').textContent='👥 '+participantCount();
     $('sceneEmoji').textContent=visual.emoji;
     $('sceneLeft').textContent=visual.left;
     $('sceneRight').textContent=visual.right;
@@ -417,7 +465,8 @@
         if(i===current)badge.classList.add('is-current');
         const icon=document.createElement('span');icon.className='chain-player-icon';
         icon.textContent=chainRecordings[i]?'✅':i===current?'🎙️':'👤';
-        const label=document.createElement('span');label.textContent=String(i+1);
+        const label=document.createElement('span');label.textContent=playerNames[i]?.trim()||String(i+1);
+        label.title=participantName(i);
         badge.append(icon,label);
         bar.append(badge);
       }
@@ -431,8 +480,8 @@
         $(id).classList.toggle('is-current',isActive);
         $(id).classList.toggle('is-done',done);
       }
-      $('duelNameOne').textContent=G.msg('chainVoice',{value:1});
-      $('duelNameTwo').textContent=G.msg('chainVoice',{value:2});
+      $('duelNameOne').textContent=participantName(0);
+      $('duelNameTwo').textContent=participantName(1);
     }
     $('speedPanel').hidden=modeId!=='speed';
     if(modeId==='speed')updateSpeedClock();
@@ -445,44 +494,156 @@
     $('speedRemaining').textContent=String(Math.ceil(remaining)).padStart(2,'0');
     $('speedFill').style.width=(remaining/maximum*100).toFixed(1)+'%';
   }
+
+  function stopPartyTimer(){if(partyTimerId){clearInterval(partyTimerId);partyTimerId=null;}}
+  function resetParty(){
+    stopPartyTimer();partyIndex=0;partyPromptIndex=0;partyHidden=false;partyReveal=false;partyDare=false;
+    partyRemaining=mode().seconds||0;partyScores.fill(0);
+  }
+  function currentPartyPrompt(){
+    return partyDare&&modeId==='truthdare'?G.dare(partyPromptIndex):G.prompt(modeId,partyPromptIndex);
+  }
+  function nextPartyCard(){
+    if(!partyMode())return;
+    stopPartyTimer();partyPromptIndex=(partyPromptIndex+1)%4;
+    partyHidden=false;partyReveal=false;partyRemaining=mode().seconds||0;
+    render();notify(G.msg('newRound',{value:participantName(partyIndex)}));
+  }
+  function nextPartyTurn(){
+    if(!partyMode())return;
+    stopPartyTimer();partyIndex=(partyIndex+1)%participantCount();
+    partyPromptIndex=(partyPromptIndex+1)%4;partyHidden=false;partyReveal=false;partyRemaining=mode().seconds||0;
+    render();notify(G.msg('turnFor',{value:participantName(partyIndex)}));
+  }
+  function startPartyTimer(){
+    if(partyTimerId){stopPartyTimer();render();return;}
+    if(partyRemaining<=0)partyRemaining=mode().seconds||30;
+    let previous=performance.now();
+    partyTimerId=setInterval(()=>{
+      const now=performance.now();
+      partyRemaining=Math.max(0,partyRemaining-(now-previous)/1000);previous=now;
+      updatePartyTimer();
+      if(partyRemaining<=0){stopPartyTimer();render();notify(G.msg('timeUp'));}
+    },90);
+    render();notify(G.msg('timerNow'));
+  }
+  function updatePartyTimer(){
+    const maximum=mode().seconds||30;
+    $('partyTimerValue').textContent=String(Math.ceil(partyRemaining));
+    $('partyTimerFill').style.width=(partyRemaining/maximum*100).toFixed(1)+'%';
+    $('partyTimerPanel').classList.toggle('time-almost-up',partyRemaining<=3);
+  }
+  function partyGreen(){
+    if(!partyMode())return;
+    const variant=mode().variant;
+    if(variant==='timer')return startPartyTimer();
+    if(variant==='truthdare'){partyDare=!partyDare;partyHidden=false;partyReveal=false;}
+    else if(variant==='reveal')partyReveal=!partyReveal;
+    else if(variant==='score'){
+      const guesser=(partyIndex+1)%2;
+      partyScores[guesser]++;render();notify(G.msg('correct',{value:participantName(guesser)}));return;
+    }else partyHidden=!partyHidden;
+    render();
+  }
+  function renderParty(){
+    $('handoff').hidden=true;$('secretPanel').hidden=true;$('guessPanel').hidden=true;
+    $('chainNextPanel').hidden=true;$('revealPanel').hidden=true;
+    $('partyBoard').hidden=false;$('promptBox').hidden=true;
+    $('chainControls').hidden=mode().group!=='groups';
+    $('chainPlayersLabel').textContent=G.msg('players');
+    $('chainPlayers').value=String(chainPlayers);$('chainPlayers').disabled=false;
+    const two=$('chainPlayers').querySelector('option[value="2"]');if(two)two.disabled=false;
+    $('gameSelectLabel').textContent=G.msg('select');
+    $('gameDescription').textContent=G.description(modeId);
+    $('gameSelect').value=modeId;$('gameSelect').disabled=false;
+    $('playerNamesPanel').hidden=false;renderPlayerNames();
+    const name=participantName(partyIndex);
+    $('stageBadge').textContent=G.msg('currentPlayer',{value:name});
+    $('stageTitle').textContent=G.title(modeId);$('stageHint').textContent=G.description(modeId);
+    $('partyPlayer').textContent='🎯 '+G.msg('turnFor',{value:name});
+    $('partyQuestion').textContent=partyHidden?G.msg('hidden'):currentPartyPrompt();
+    $('partyQuestion').classList.toggle('is-hidden',partyHidden);
+    $('partyDirections').textContent=G.msg(mode().variant==='timer'?'timerHelp':mode().variant==='talk'?'voteHelp':'partyHow');
+    $('partyAnswer').hidden=!(mode().variant==='reveal'&&partyReveal);
+    $('partyAnswer').textContent=mode().variant==='reveal'?G.msg('answerLabel',{value:G.answer(partyPromptIndex)}):'';
+    $('partyTimerPanel').hidden=mode().variant!=='timer';
+    if(mode().variant==='timer')updatePartyTimer();
+    $('partyScore').hidden=mode().variant!=='score';
+    if(mode().variant==='score'){
+      const scoreboard=$('partyScore');scoreboard.replaceChildren();
+      for(let i=0;i<2;i++){
+        const chip=document.createElement('span');chip.textContent='🏆 '+participantName(i)+' · '+partyScores[i];
+        scoreboard.append(chip);
+      }
+    }
+    $('scenePlayers').textContent='👥 '+participantCount();
+    const help=$('helpPanel');help.querySelector('strong').textContent=G.msg('how');
+    [...help.querySelectorAll('p')].forEach((p,i)=>p.textContent=G.msg(['partyHelp','partyHow','voteHelp','timerHelp'][i]));
+    const variant=mode().variant;
+    const green=variant==='timer'?(partyTimerId?'timerPause':partyRemaining<=0?'timerRestart':'timerStart'):
+      variant==='truthdare'?(partyDare?'truth':'dare'):
+      variant==='reveal'?(partyReveal?'answerHide':'answerShow'):
+      variant==='score'?'point':partyHidden?'show':'flip';
+    setTile('red','refresh',G.msg('newCard'),'🎲 '+G.msg('question'));
+    setTile('green',variant==='timer'?'play':variant==='truthdare'?'refresh':variant==='score'?'next':'play',
+      G.msg(green),variant==='timer'?'⏱️ '+String(mode().seconds)+'s':
+      variant==='score'?G.msg('score',{value:partyScores[(partyIndex+1)%2]}):G.msg('partyHow'),!!partyTimerId);
+    setTile('blue','next',G.msg('skipTurn'),G.msg('passTo',{value:participantName((partyIndex+1)%participantCount())}));
+    $('filterToggle').checked=filterEnabled;
+  }
   function render(){
     renderGameIdentity();
+    if(partyMode()){renderParty();return;}
+    $('partyBoard').hidden=true;
     const hostTurn=stage==='host',rivalTurn=stage==='rival',reveal=stage==='reveal';
     $('secretPanel').hidden=!hostTurn || duelMode();
     $('guessPanel').hidden=!(rivalTurn&&!!rival&&(!chainMode()||chainIndex>=chainPlayers-1));
     $('guessPanel').querySelector('label').hidden=duelMode();
     $('guessInput').hidden=duelMode();
     $('chainNextPanel').hidden=!(rivalTurn&&!!rival&&chainMode()&&chainIndex<chainPlayers-1);
-    $('nextChainButton').textContent=G.msg('passNext');
+    $('nextChainButton').textContent=hasName(chainIndex+1)?G.msg('passTo',{value:participantName(chainIndex+1)}):G.msg('passNext');
     $('revealButton').textContent=duelMode()?G.msg('duelReveal'):chainMode()?G.msg('compare'):t('revealBtn');
     $('chainHistory').hidden=!(reveal&&chainMode());
     $('winnerPanel').hidden=!(reveal&&duelMode());
     $('voteTitle').textContent=G.msg('vote');
-    $('winnerOne').textContent=G.msg('voteOne');
-    $('winnerTwo').textContent=G.msg('voteTwo');
+    $('winnerOne').textContent='🎙️ '+participantName(0);
+    $('winnerTwo').textContent='🎧 '+participantName(1);
     $('winnerTie').textContent=G.msg('voteTie');
-    $('winnerResult').textContent=winner?G.msg(winner==='one'?'winnerOne':winner==='two'?'winnerTwo':'winnerTie'):'';
+    $('winnerResult').textContent=winner?(winner==='tie'?G.msg('winnerTie'):G.msg('resultNamed',{value:participantName(winner==='one'?0:1)})):'';
     $('revealPanel').hidden=!reveal;
     $('handoff').hidden=stage!=='handoff';
-    $('stageBadge').textContent=chainMode()&&!reveal?(G.msg('step')+' '+(hostTurn?1:chainIndex+1)+' / '+chainPlayers):t(hostTurn?'badgeHost':reveal?'badgeReveal':'badgeRival');
-    $('stageTitle').textContent=t(hostTurn?'titleHost':reveal?'titleReveal':'titleRival');
+    const personIndex=activePerson();
+    $('stageBadge').textContent=chainMode()&&!reveal
+      ?(hasName(personIndex)?participantName(personIndex)+' · ':'👥 ')+(personIndex+1)+' / '+chainPlayers
+      :!reveal&&hasName(personIndex)?'🎙️ '+participantName(personIndex)
+      :t(hostTurn?'badgeHost':reveal?'badgeReveal':'badgeRival');
+    $('stageTitle').textContent=!reveal&&hasName(personIndex)?G.msg('turnFor',{value:participantName(personIndex)}):t(hostTurn?'titleHost':reveal?'titleReveal':'titleRival');
     $('stageHint').textContent=chainMode()&&rivalTurn?G.msg('chainRivalHint'):duelMode()&&hostTurn?G.msg('duelStart'):duelMode()&&rivalTurn?G.msg('duelRival'):chainMode()&&reveal?G.msg('chainResult'):t(hostTurn?'hintHost':reveal?'hintReveal':'hintRival');
     $('gameSelectLabel').textContent=G.msg('select');
     $('gameDescription').textContent=G.description(modeId);
+    // Help always explains the rules of the selected game, never another mode.
+    const customKind=chainMode()?'chain':duelMode()?'duel':null;
+    const help=$('helpPanel');
+    help.querySelector('strong').textContent=G.msg('how');
+    [...help.querySelectorAll('p')].forEach((paragraph,index)=>{
+      paragraph.textContent=customKind?G.msg(customKind+'Help'+(index+1)):t('help'+(index+1));
+    });
     $('gameSelect').value=modeId;
     $('gameSelect').disabled=recording||processing||pending;
-    $('chainControls').hidden=!chainMode();
+    $('chainControls').hidden=!(chainMode()||(partyMode()&&mode().group==='groups'));
     $('chainPlayersLabel').textContent=G.msg('players');
-    $('chainPlayers').disabled=!hostTurn||!!host;
+    $('chainPlayers').disabled=partyMode()?false:!hostTurn||!!host;
     $('chainPlayers').value=String(chainPlayers);
+    const two=$('chainPlayers').querySelector('option[value="2"]');if(two)two.disabled=chainMode();
+    renderPlayerNames();
     $('promptBox').hidden=!(hostTurn||(duelMode()&&rivalTurn));
     $('promptLabel').textContent=G.msg('prompt');
     $('promptText').textContent=G.prompt(modeId,promptIndex);
     $('shufflePrompt').setAttribute('aria-label',G.msg('random'));
     $('shufflePrompt').disabled=recording||processing||pending||!!host||!!rival||!hostTurn;
-    $('handoffTitle').textContent=chainMode()?G.msg('step')+' '+(chainIndex+1)+' / '+chainPlayers:t('handoffTitle');
+    $('handoffTitle').textContent=hasName(chainMode()?chainIndex:1)?G.msg('passTo',{value:participantName(chainMode()?chainIndex:1)}):chainMode()?G.msg('step')+' '+(chainIndex+1)+' / '+chainPlayers:t('handoffTitle');
     $('handoff').querySelector('p').textContent=chainMode()?G.msg('chainRivalHint'):duelMode()?G.msg('duelRival'):t('handoffDesc');
-    $('rivalReadyButton').textContent=chainMode()?(G.msg('step')+' '+(chainIndex+1)+' ➜'):t('rivalReady');
+    $('rivalReadyButton').textContent=hasName(chainMode()?chainIndex:1)?G.msg('readyFor',{value:participantName(chainMode()?chainIndex:1)}):chainMode()?(G.msg('step')+' '+(chainIndex+1)+' ➜'):t('rivalReady');
     renderHistory();
     const press=recording?t('stopRecord'):pending?t('startingMic'):processing?t('processing'):mode().limit?('⏱️ '+timeLimit()+'s'):t('recordHint');
     if(hostTurn){
@@ -507,16 +668,19 @@
     $('filterToggle').checked=filterEnabled;
   }
   function onRed(){
+    if(partyMode())return nextPartyCard();
     if(stage==='reveal')return resetRound();
     if(recording)return endRecording();
     if(stage==='host'||stage==='rival')return beginRecording();
   }
   function onGreen(){
+    if(partyMode())return partyGreen();
     if(stage==='host')return playRecording(host,'normal');
     if(stage==='rival')return playRecording(currentSource(),duelMode()?'normal':'reverse');
     if(stage==='reveal')return playRecording(host,'normal');
   }
   function onBlue(){
+    if(partyMode())return nextPartyTurn();
     if(stage==='host')return toHandoff();
     if(stage==='rival')return playRecording(rival,duelMode()?'normal':'reverse');
     if(stage==='reveal')return playRecording(finalRecord(),duelMode()?'normal':'reverse');
@@ -536,7 +700,7 @@
   $('nextChainButton').addEventListener('click',nextInChain);
   $('shufflePrompt').addEventListener('click',pickPrompt);
   $('gameSelect').addEventListener('change',e=>changeGame(e.target.value));
-  $('chainPlayers').addEventListener('change',e=>{if(host){e.target.value=String(chainPlayers);return;}chainPlayers=Math.max(3,Math.min(6,Number(e.target.value)||4));render()});
+  $('chainPlayers').addEventListener('change',e=>{if(!partyMode()&&host){e.target.value=String(chainPlayers);say('namesLocked');return;}chainPlayers=Math.max(chainMode()?3:2,Math.min(6,Number(e.target.value)||4));partyIndex%=participantCount();render()});
   for(const button of document.querySelectorAll('[data-winner]'))button.addEventListener('click',()=>chooseWinner(button.dataset.winner));
   $('helpButton').addEventListener('click',()=>openPanel('helpPanel'));
   $('filterButton').addEventListener('click',()=>openPanel('filterPanel'));
@@ -554,6 +718,7 @@
     }catch(_){say('shareLink',{value:url});}
   });
   window.addEventListener('pagehide',()=>{
+    stopPartyTimer();
     clearTimer();stopPlaying();if(media?.state==='recording')try{media.stop()}catch(_){}
     disposeCapture();freeRecording(host);freeRecording(rival);
   });
@@ -566,7 +731,10 @@
     }
     if(notice)notify(t(notice.key,notice.vars),notice.error);
   });
-  populateGames();render();
+  populateGames();
+  if(chainMode()||partyMode())$('playerNamesPanel').open=true;
+  resetParty();
+  render();
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   }
