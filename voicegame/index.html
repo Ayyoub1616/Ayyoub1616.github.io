@@ -51,6 +51,33 @@
         <select id="chainPlayers"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select>
       </div>
     </section>
+    <section class="mode-scene" id="modeScene" aria-label="Estilo del minijuego">
+      <div class="scene-top">
+        <span id="sceneCategory" class="scene-category">🎉 Amigos</span>
+        <span id="scenePlayers" class="scene-players">👥 2</span>
+      </div>
+      <div class="scene-illustration" aria-hidden="true">
+        <span id="sceneLeft" class="scene-floater scene-floater-left">🎙️</span>
+        <span id="sceneEmoji" class="scene-emoji">🌀</span>
+        <span id="sceneRight" class="scene-floater scene-floater-right">⏪</span>
+      </div>
+      <h2 id="sceneTitle">⏪ Adivina la frase</h2>
+      <p id="sceneSubtitle">Escucha la frase al revés y adivina.</p>
+      <div id="sceneSteps" class="scene-steps" aria-label="Pasos del juego">
+        <span id="stepOne">🎙️ Graba</span><span class="step-arrow">›</span>
+        <span id="stepTwo">⏪ Escucha</span><span class="step-arrow">›</span>
+        <span id="stepThree">🤯 Adivina</span>
+      </div>
+    </section>
+    <div class="mode-specials">
+      <div id="chainProgress" class="chain-progress" hidden aria-label="Turnos de la cadena"></div>
+      <div id="duelArena" class="duel-arena" hidden aria-label="Duelo entre jugadores">
+        <div class="duel-person" id="duelPersonOne"><span>🎙️</span><strong id="duelNameOne">Jugador 1</strong></div>
+        <div class="duel-versus">VS</div>
+        <div class="duel-person" id="duelPersonTwo"><span>🎧</span><strong id="duelNameTwo">Jugador 2</strong></div>
+      </div>
+      <div id="speedPanel" class="speed-panel" hidden><span id="speedTitle">⚡ 5 s</span><div class="speed-track"><span id="speedFill"></span></div><strong id="speedRemaining">05</strong></div>
+    </div>
     <section class="prompt-box" id="promptBox">
       <div class="prompt-copy"><span id="promptLabel">💡 IDEA PARA GRABAR</span><strong id="promptText">La pizza ha llegado</strong></div>
       <button id="shufflePrompt" class="prompt-shuffle" type="button" aria-label="Otra idea">🎲</button>
